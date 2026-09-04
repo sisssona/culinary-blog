@@ -1,0 +1,139 @@
+﻿<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кулинарен Блог / Culinary Blog</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <h1 id="site-title">🍳 Кулинарен Блог</h1>
+        <div class="lang-switch">
+            <button id="btn-bg" class="lang-btn active">🇧🇬 BG</button>
+            <button id="btn-en" class="lang-btn">🇬🇧 EN</button>
+        </div>
+        <div class="user-auth-section">
+            <span id="user-display-name" style="display:none;"></span>
+            <button id="btn-auth-modal" class="btn">Вход / Регистрация</button>
+            <button id="btn-logout" class="btn" style="display:none;">Изход</button>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Секция за добавяне на рецепта -->
+        <section class="create-recipe-section">
+            <h2 id="lbl-create-header">Добави нова рецепта</h2>
+            <form id="create-recipe-form">
+                <div class="form-group">
+                    <label for="title" id="lbl-title">Заглавие:</label>
+                    <input type="text" id="title" required placeholder="напр. Ризото със свинско бонфиле">
+                </div>
+
+                <div class="form-group">
+                    <label for="category" id="lbl-category">Категория:</label>
+                    <select id="category" required>
+                        <option value="Основни">Основни</option>
+                        <option value="Салати">Салати</option>
+                        <option value="Десерти">Десерти</option>
+                        <option value="Супи">Супи</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ingredients" id="lbl-ingredients">Съставки:</label>
+                    <textarea id="ingredients" rows="3" required placeholder="напр. 300г бонфиле, 1ч.ч. ориз арборио..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="instructions" id="lbl-instructions">Начин на приготвяне:</label>
+                    <textarea id="instructions" rows="4" required placeholder="Запържете месото..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="imageFile" id="lbl-image-file">Снимка (файлов качване):</label>
+                    <input type="file" id="imageFile" accept="image/*">
+                </div>
+
+                <div class="form-group">
+                    <label for="imageUrl" id="lbl-image-url">ИЛИ URL на снимка:</label>
+                    <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg">
+                </div>
+
+                <button type="submit" id="btn-publish" class="btn-submit">Публикувай рецепта</button>
+            </form>
+        </section>
+
+        <section id="recipes-list" class="recipes-grid">
+            <!-- Рецептите ще се зареждат тук -->
+        </section>
+    </main>
+
+    <!-- Модален прозорец за Вход / Регистрация -->
+    <div id="auth-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+
+            <div class="auth-tabs">
+                <button id="tab-login" class="active">Вход</button>
+                <button id="tab-register">Регистрация</button>
+            </div>
+
+            <!-- Форма за Вход -->
+            <form id="login-form">
+                <h3 id="lbl-login-header">Вход в профила</h3>
+                <div class="form-group">
+                    <label for="login-email" id="lbl-login-email">Имейл:</label>
+                    <input type="email" id="login-email" required placeholder="email@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="login-password" id="lbl-login-password">Парола:</label>
+                    <input type="password" id="login-password" required placeholder="******">
+                </div>
+                <button type="submit" id="btn-login-submit" class="btn-submit">Влез</button>
+            </form>
+
+            <!-- Форма за Регистрация -->
+            <form id="register-form" style="display: none;">
+                <h3 id="lbl-reg-header">Нова регистрация</h3>
+                <div class="form-group">
+                    <label for="reg-username" id="lbl-reg-username">Потребителско име / Име:</label>
+                    <input type="text" id="reg-username" required placeholder="Иван Иванов">
+                </div>
+                <div class="form-group">
+                    <label for="reg-email" id="lbl-reg-email">Имейл:</label>
+                    <input type="email" id="reg-email" required placeholder="email@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="reg-password" id="lbl-reg-password">Парола:</label>
+                    <input type="password" id="reg-password" required placeholder="******">
+                </div>
+                <button type="submit" id="btn-reg-submit" class="btn-submit">Регистрирай се</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модален прозорец за детайлен преглед на рецепта -->
+    <div id="recipe-details-modal" class="modal" style="display: none;">
+        <div class="modal-content recipe-modal-content">
+            <span class="close-recipe-modal">&times;</span>
+            <img id="modal-recipe-image" src="" alt="" class="modal-recipe-image" />
+            <h2 id="modal-recipe-title"></h2>
+            <span id="modal-recipe-category" class="badge"></span>
+
+            <div class="recipe-section">
+                <h3 id="modal-lbl-ingredients">🛒 Съставки</h3>
+                <div id="modal-recipe-ingredients" class="ingredients-list"></div>
+            </div>
+
+            <div class="recipe-section">
+                <h3 id="modal-lbl-instructions">👨‍🍳 Начин на приготвяне</h3>
+                <p id="modal-recipe-instructions" class="instructions-text"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

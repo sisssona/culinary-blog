@@ -1,0 +1,55 @@
+﻿services:
+  # 1. PostgreSQL
+  postgres_db:
+    image: postgres:16-alpine
+    container_name: culinary_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: CulinaryBlogDb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: YourSecurePassword123!
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. .NET 8 Web API
+  web_api:
+    image: culinaryblog-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: culinary_api
+    restart: always
+    ports:
+      - "5011:8080" # <-- Добави този ред тук
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres_db;Port=5432;Database=CulinaryBlogDb;Username=postgres;Password=YourSecurePassword123!
+      - Jwt__Key=SuperSecretKeyForJwtAuthentication1234567890!
+      - Jwt__Issuer=CulinaryBlog
+      - Jwt__Audience=CulinaryBlogUsers
+    volumes:
+      - uploads_data:/app/wwwroot/uploads
+    depends_on:
+      - postgres_db
+
+  # 3. Frontend + Nginx Proxy
+  proxy:
+    build:
+      context: ./ClientApp
+      dockerfile: Dockerfile
+    container_name: culinary_nginx
+    restart: always
+    ports:
+      - "5000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - uploads_data:/usr/share/nginx/html/uploads:ro
+    depends_on:
+      - web_api
+
+volumes:
+  postgres_data:
+  uploads_data:

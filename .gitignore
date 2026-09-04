@@ -1,0 +1,19 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Node & React
+node_modules/
+dist/
+build/
+.env
+
+# Docker / Volumes
+postgres_data/
+uploads_data/
+
+# IDE
+.idea/
+.vscode/
