@@ -14,8 +14,6 @@ export default function RecipeDetail({ lang }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5011';
-
     useEffect(() => {
         setLoading(true);
         api.get(`/recipes/${id}?lang=${lang}`)
@@ -34,7 +32,7 @@ export default function RecipeDetail({ lang }) {
 
         try {
             await api.delete(`/recipes/${id}`);
-            navigate('/recipes');
+            navigate('/'); // Променено от '/recipes' на '/'
         } catch (err) {
             console.error("Грешка при изтриване:", err);
             alert("Грешка при изтриване на рецептата.");
@@ -42,13 +40,10 @@ export default function RecipeDetail({ lang }) {
     };
 
     const getImageUrl = (imagePath) => {
-        if (!imagePath) return null;
-        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
-
-        let cleanPath = imagePath.replace(/^\/api\/v1/, '');
-        cleanPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-        const hostUrl = BASE_URL.replace(/\/api\/v1\/?$/, '');
-        return `${hostUrl}${cleanPath}`;
+        if (!imagePath) return '/no-image.jpg';
+        if (imagePath.startsWith('http')) return imagePath;
+        // /uploads/xxxx.webp -> http://localhost:5000/uploads/xxxx.webp
+        return imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
     };
 
     if (loading) return <p style={{ textAlign: 'center', padding: '2rem' }}>Зареждане...</p>;
@@ -59,7 +54,7 @@ export default function RecipeDetail({ lang }) {
         <div style={{ maxWidth: '800px', margin: '2rem auto', padding: '0 1rem' }}>
             {/* Навигация и контролни бутони */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <Link to="/recipes" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
+                <Link to="/" style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
                     ← Обратно към всички рецепти
                 </Link>
 
@@ -104,13 +99,12 @@ export default function RecipeDetail({ lang }) {
                 <img
                     src={getImageUrl(recipe.imageUrl)}
                     alt={recipe.title}
-                    style={{ width: '100%', maxHeight: '400px', objectFit: 'cover', borderRadius: '8px', marginBottom: '2rem' }}
+                    style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '8px', marginBottom: '2rem' }}
                 />
             )}
 
             <div style={{ marginBottom: '2rem' }}>
                 <h3>Съставки:</h3>
-                {/* Стилът за пренасяне е приложен и тук */}
                 <div style={{ whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: '1.6' }}>
                     {recipe.ingredients}
                 </div>
@@ -118,7 +112,6 @@ export default function RecipeDetail({ lang }) {
 
             <div style={{ marginBottom: '2rem' }}>
                 <h3>Инструкции:</h3>
-                {/* Тук е фиксът за пренасянето на новите редове и дългите думи */}
                 <div style={{ whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: '1.6' }}>
                     {recipe.instructions}
                 </div>

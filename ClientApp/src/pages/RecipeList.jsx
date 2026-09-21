@@ -9,8 +9,6 @@ export default function RecipeList({ lang }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5011';
-
     useEffect(() => {
         setLoading(true);
         api.get(`/recipes?lang=${lang}`)
@@ -23,13 +21,10 @@ export default function RecipeList({ lang }) {
     }, [lang]);
 
     const getImageUrl = (imagePath) => {
-        if (!imagePath) return 'https://via.placeholder.com/300x200?text=No+Image';
-        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
-
-        let cleanPath = imagePath.replace(/^\/api\/v1/, '');
-        cleanPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-        const hostUrl = BASE_URL.replace(/\/api\/v1\/?$/, '');
-        return `${hostUrl}${cleanPath}`;
+        if (!imagePath) return '/no-image.jpg';
+        if (imagePath.startsWith('http')) return imagePath;
+        // /uploads/xxxx.webp -> http://localhost:5000/uploads/xxxx.webp
+        return imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
     };
 
     if (loading) return <p style={{ textAlign: 'center', padding: '2rem' }}>Зареждане...</p>;

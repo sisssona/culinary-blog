@@ -15,6 +15,17 @@ using System.Threading.RateLimiting; // Задължително за Rate Limit
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5000", "http://localhost:5173", "http://localhost:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 // 1. Конфигуриране на глобални лимити за размер на файлове (50 MB)
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -73,22 +84,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// 4. Настройка на CORS политика за React (Vite / CRA)
-var allowReactAppPolicy = "AllowFrontend";
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(name: allowReactAppPolicy, policy =>
-    {
-        policy.WithOrigins(
-                "http://localhost:5173", // Vite / React
-                "http://localhost:3000"  // Create React App / Next.js
-              )
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
-    });
-});
-
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -131,8 +126,7 @@ var app = builder.Build();
 // 1. Глобален Exception Handler
 app.UseMiddleware<ExceptionMiddleware>();
 
-// Активиране на CORS
-app.UseCors(allowReactAppPolicy);
+
 
 // Обслужване на статични файлове и папка wwwroot (за /uploads/...)
 app.UseDefaultFiles();
@@ -157,6 +151,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRouting();
+
+// Активиране на CORS
+app.UseCors("AllowFrontend");
 
 // Активиране на Rate Limiter (трябва да е след UseRouting и преди UseAuthentication/Endpoints)
 app.UseRateLimiter();

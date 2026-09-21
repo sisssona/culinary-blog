@@ -71,7 +71,9 @@ public class FileStorageService : IFileStorageService
             using (var thumbImage = new MagickImage(ms.ToArray()))
             {
                 thumbImage.AutoOrient();
-                thumbImage.Crop(new MagickGeometry(300, 300), Gravity.Center);
+                thumbImage.Resize(new MagickGeometry(300, 300) { FillArea = true });
+                thumbImage.Crop(300, 300, Gravity.Center);
+                thumbImage.RePage();
                 thumbImage.Format = MagickFormat.WebP;
                 thumbImage.Quality = 80;
                 await thumbImage.WriteAsync(thumbFilePath);

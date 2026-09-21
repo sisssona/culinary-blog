@@ -3,66 +3,77 @@ import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
+const persistAuth = (token, user) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+};
+
+const mapAuth = (data, fallbackEmail) => {
+    const token = data.token || data.Token;
+    const user = {
+        id: data.userId || data.UserId,
+        email: data.email || data.Email || fallbackEmail,
+        displayName: data.displayName || data.DisplayName || fallbackEmail,
+        role: data.role || data.Role || 'User'
+    };
+    return { token, user };
+};
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(() => localStorage.getItem('token'));
     const [loading, setLoading] = useState(true);
 
-    // Закачаме/премахваме токена в Axios за всички HTTP заявки
     useEffect(() => {
         if (token) {
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             const storedUser = localStorage.getItem('user');
-
             if (storedUser && storedUser !== 'undefined') {
                 try {
                     setUser(JSON.parse(storedUser));
-                } catch (e) {
-                    setUser({ email: 'Моят Профил' });
+                } catch {
+                    setUser(null);
                 }
-            } else {
-                const defaultUser = { email: 'Моят Профил' };
-                setUser(defaultUser);
-                localStorage.setItem('user', JSON.stringify(defaultUser));
             }
         } else {
-            delete api.defaults.headers.common['Authorization'];
             setUser(null);
         }
-
         setLoading(false);
     }, [token]);
+
+    const applyAuth = (data, email) => {
+        const mapped = mapAuth(data, email);
+        if (!mapped.token) return { success: false, message: 'Не получихме токен от сървъра.' };
+        persistAuth(mapped.token, mapped.user);
+        setToken(mapped.token);
+        setUser(mapped.user);
+        return { success: true };
+    };
 
     const login = async (email, password) => {
         try {
             const response = await api.post('/auth/login', { email, password });
-
-            const jwtToken = response.data.token || response.data.Token || response.data;
-            const userData = response.data.user || response.data.User || { email };
-
-            if (jwtToken && typeof jwtToken === 'string') {
-                localStorage.setItem('token', jwtToken);
-                localStorage.setItem('user', JSON.stringify(userData));
-
-                api.defaults.headers.common['Authorization'] = `Bearer ${jwtToken}`;
-                setToken(jwtToken);
-                setUser(userData);
-                return { success: true };
-            } else {
-                return { success: false, message: 'Невалиден формат на токена.' };
-            }
+            return applyAuth(response.data, email);
         } catch (error) {
-            return {
-                success: false,
-                message: error.response?.data?.message || 'Грешка при вход'
-            };
+            const errData = error.response?.data;
+            const msg = errData?.error || errData?.message || 'Грешка при вход';
+            return { success: false, message: typeof msg === 'string' ? msg : 'Грешка при вход' };
+        }
+    };
+
+    const register = async (email, password, displayName) => {
+        try {
+            const response = await api.post('/auth/register', { email, password, displayName });
+            return applyAuth(response.data, email);
+        } catch (error) {
+            const errData = error.response?.data;
+            const msg = errData?.error || 'Този имейл вече е зает или паролата е слаба.';
+            return { success: false, message: typeof msg === 'string' ? msg : 'Грешка при регистрация' };
         }
     };
 
     const logout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        delete api.defaults.headers.common['Authorization'];
         setToken(null);
         setUser(null);
     };
@@ -71,16 +82,14 @@ export const AuthProvider = ({ children }) => {
         user,
         token,
         isAuthenticated: !!token,
+        isAdmin: user?.role === 'Admin',
         loading,
         login,
+        register,
         logout
     };
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

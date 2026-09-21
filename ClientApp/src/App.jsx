@@ -69,6 +69,7 @@ function MainLayout() {
 
             <Routes>
                 <Route path="/" element={<HomePage />} />
+                <Route path="/recipes" element={<HomePage />} />
                 <Route path="/recipes/:id" element={<RecipeDetails />} />
 
                 <Route element={<ProtectedRoute />}>

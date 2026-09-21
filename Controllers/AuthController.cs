@@ -29,19 +29,22 @@ public class AuthController : ControllerBase
         if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
             return BadRequest(new { error = "Потребител с този имейл вече съществува." });
 
-        var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+        var displayName = string.IsNullOrWhiteSpace(dto.DisplayName)
+            ? dto.Email.Split('@')[0]
+            : dto.DisplayName.Trim();
 
         var user = new User
         {
             Email = dto.Email,
-            PasswordHash = hashedPassword
+            DisplayName = displayName,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
         };
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
         var token = GenerateJwtToken(user);
-        return Ok(new AuthResponseDto(token, user.Email, user.Role));
+        return Ok(new AuthResponseDto(token, user.Id, user.Email, user.DisplayName, user.Role));
     }
 
     [HttpPost("login")]
@@ -51,8 +54,14 @@ public class AuthController : ControllerBase
         if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             return Unauthorized(new { error = "Невалиден имейл или парола." });
 
+        if (string.IsNullOrWhiteSpace(user.DisplayName))
+        {
+            user.DisplayName = user.Email.Split('@')[0];
+            await _context.SaveChangesAsync();
+        }
+
         var token = GenerateJwtToken(user);
-        return Ok(new AuthResponseDto(token, user.Email, user.Role));
+        return Ok(new AuthResponseDto(token, user.Id, user.Email, user.DisplayName, user.Role));
     }
 
     private string GenerateJwtToken(User user)
@@ -64,6 +73,7 @@ public class AuthController : ControllerBase
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Email, user.Email),
+            new Claim(ClaimTypes.Name, user.DisplayName),
             new Claim(ClaimTypes.Role, user.Role)
         };
 

@@ -15,9 +15,7 @@ export default function AddRecipePage() {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState('');
 
-    // Референция за панене/отмяна на заявката през Axios
     const abortControllerRef = useRef(null);
-
     const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.gif'];
 
     const handleFileChange = (e) => {
@@ -27,6 +25,15 @@ export default function AddRecipePage() {
 
             if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
                 setError(`Неподдържан формат! Позволени формати: ${ALLOWED_EXTENSIONS.join(', ')}`);
+                setImageFile(null);
+                setPreviewUrl(null);
+                e.target.value = '';
+                return;
+            }
+
+            const maxSizeBytes = 10 * 1024 * 1024; // 10MB лимит
+            if (file.size > maxSizeBytes) {
+                setError('Файлът надвишава максималния размер от 10MB.');
                 setImageFile(null);
                 setPreviewUrl(null);
                 e.target.value = '';
@@ -45,7 +52,6 @@ export default function AddRecipePage() {
         setUploadProgress(0);
         setError('');
 
-        // Създаваме AbortController за тази заявка
         abortControllerRef.current = new AbortController();
 
         try {
@@ -61,7 +67,7 @@ export default function AddRecipePage() {
 
             await api.post('/recipes', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
-                signal: abortControllerRef.current.signal, // Свързваме Axios с контролера
+                signal: abortControllerRef.current.signal,
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
                         const percentCompleted = Math.round(
@@ -87,7 +93,6 @@ export default function AddRecipePage() {
         }
     };
 
-    // Функция за бутон "Отказ" по време на качване
     const handleCancelUpload = () => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
@@ -123,11 +128,12 @@ export default function AddRecipePage() {
                 </div>
 
                 <div style={{ marginBottom: '1rem' }}>
-                    <label>Продукти (разделени със запетая):</label>
+                    <label>Продукти (по един на нов ред):</label>
                     <textarea
                         value={ingredients}
                         onChange={(e) => setIngredients(e.target.value)}
-                        rows="3"
+                        rows="4"
+                        placeholder="Пример:&#10;1 ч.ч. ориз&#10;500 г пилешко месо&#10;сол и черен пипер"
                         style={{ width: '100%', padding: '8px', marginTop: '4px' }}
                     />
                 </div>
@@ -152,15 +158,16 @@ export default function AddRecipePage() {
                         style={{ width: '100%', margin: '8px 0' }}
                     />
                     {previewUrl && (
-                        <img
-                            src={previewUrl}
-                            alt="Преглед"
-                            style={{ width: '100%', maxHeight: '250px', objectFit: 'cover', borderRadius: '8px' }}
-                        />
+                        <div style={{ backgroundColor: '#f9f9f9', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
+                            <img
+                                src={previewUrl}
+                                alt="Преглед"
+                                style={{ width: '100%', maxHeight: '250px', objectFit: 'contain', borderRadius: '8px' }}
+                            />
+                        </div>
                     )}
                 </div>
 
-                {/* Лента за напредък (Progress Bar) с бутон за отмяна */}
                 {loading && (
                     <div style={{ marginBottom: '1.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>

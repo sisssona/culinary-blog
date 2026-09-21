@@ -1,5 +1,7 @@
-﻿using CulinaryBlog.Data;
+﻿using System.Text.Json;
+using CulinaryBlog.Data;
 using CulinaryBlog.DTOs;
+using CulinaryBlog.Helpers;
 using CulinaryBlog.Models;
 using CulinaryBlog.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -27,150 +29,449 @@ public class RecipesController : ControllerBase
         _translationService = translationService;
     }
 
-    // GET: api/v1/recipes?lang=bg
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string lang = "bg",
+        [FromQuery] string? q = null,
+        [FromQuery] string? category = null,
+        [FromQuery] string sort = "newest",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 12,
+        CancellationToken cancellationToken = default)
     {
-        var recipes = await _context.Recipes
-            .Include(r => r.Translations)
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 48);
+
+        var query = BaseRecipeQuery().Where(r => r.Status == "approved");
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            query = query.Where(r =>
+                r.CategoryEntity != null && r.CategoryEntity.Slug == category);
+        }
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var term = q.Trim();
+            query = query.Where(r =>
+                EF.Functions.ILike(r.Title, $"%{term}%") ||
+                EF.Functions.ILike(r.Ingredients, $"%{term}%") ||
+                EF.Functions.ILike(r.Instructions, $"%{term}%"));
+        }
+
+        query = sort switch
+        {
+            "popular" => query.OrderByDescending(r => r.ViewCount).ThenByDescending(r => r.Likes.Count),
+            "rating" => query.OrderByDescending(r => r.Ratings.Average(x => (double?)x.Value) ?? 0),
+            _ => query.OrderByDescending(r => r.CreatedAt)
+        };
+
+        var total = await query.CountAsync(cancellationToken);
+        var recipes = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        var result = recipes.Select(r =>
-        {
-            var translation = r.Translations.FirstOrDefault(t => t.Language.ToLower() == lang.ToLower());
-
-            return new RecipeResponseDto(
-                r.Id,
-                Title: translation != null ? translation.Title : r.Title,
-                Category: r.Category,
-                Ingredients: translation != null ? translation.Ingredients : r.Ingredients,
-                Instructions: translation != null ? translation.Instructions : r.Instructions,
-                r.ImageUrl,
-                r.ThumbnailUrl,
-                Language: lang,
-                Status: r.Status,
-                r.CreatedAt
-            );
-        });
-
-        return Ok(result);
+        var items = recipes.Select(r => RecipeMapper.ToCard(r, lang)).ToList();
+        return Ok(new PagedResult<RecipeCardDto>(items, total, page, pageSize));
     }
 
-    // GET: api/v1/recipes/5?lang=bg
-    [HttpGet("{id}")]
-    public async Task<IActionResult> GetById(int id, [FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
+    [HttpGet("featured")]
+    public async Task<IActionResult> Featured([FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
     {
-        var recipe = await _context.Recipes
-            .Include(r => r.Translations)
-            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        var recipes = await BaseRecipeQuery()
+            .Where(r => r.Status == "approved" && r.IsFeatured)
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(6)
+            .ToListAsync(cancellationToken);
 
+        if (recipes.Count == 0)
+        {
+            recipes = await BaseRecipeQuery()
+                .Where(r => r.Status == "approved")
+                .OrderByDescending(r => r.CreatedAt)
+                .Take(5)
+                .ToListAsync(cancellationToken);
+        }
+
+        return Ok(recipes.Select(r => RecipeMapper.ToCard(r, lang)));
+    }
+
+    [HttpGet("popular")]
+    public async Task<IActionResult> Popular([FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
+    {
+        var recipes = await BaseRecipeQuery()
+            .Where(r => r.Status == "approved")
+            .OrderByDescending(r => r.ViewCount)
+            .ThenByDescending(r => r.Likes.Count)
+            .Take(8)
+            .ToListAsync(cancellationToken);
+
+        return Ok(recipes.Select(r => RecipeMapper.ToCard(r, lang)));
+    }
+
+    [HttpGet("my-recipes")]
+    [Authorize]
+    public async Task<IActionResult> GetMyRecipes([FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
+    {
+        if (!TryGetUserId(out var currentUserId))
+            return Unauthorized();
+
+        var recipes = await BaseRecipeQuery()
+           .Where(r => r.AuthorId == currentUserId)
+           .OrderByDescending(r => r.CreatedAt)
+           .ToListAsync(cancellationToken);
+
+        return Ok(recipes.Select(r => RecipeMapper.ToCard(r, lang)));
+    }
+
+    [HttpGet("favorites")]
+    [Authorize]
+    public async Task<IActionResult> GetFavorites([FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
+    {
+        if (!TryGetUserId(out var currentUserId))
+            return Unauthorized();
+
+        var recipes = await BaseRecipeQuery()
+            .Where(r => r.Favorites.Any(f => f.UserId == currentUserId) && r.Status == "approved")
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return Ok(recipes.Select(r => RecipeMapper.ToCard(r, lang)));
+    }
+
+    [HttpGet("pending")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Pending([FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
+    {
+        var recipes = await BaseRecipeQuery()
+            .Where(r => r.Status == "pending")
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return Ok(recipes.Select(r => RecipeMapper.ToCard(r, lang)));
+    }
+
+    [HttpGet("{idOrSlug}/similar")]
+    public async Task<IActionResult> Similar(string idOrSlug, [FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
+    {
+        var recipe = await FindRecipeAsync(idOrSlug, cancellationToken);
         if (recipe == null) return NotFound();
 
-        var translation = recipe.Translations.FirstOrDefault(t => t.Language.ToLower() == lang.ToLower());
+        var similar = await BaseRecipeQuery()
+            .Where(r => r.Status == "approved" && r.Id != recipe.Id && r.CategoryId == recipe.CategoryId)
+            .OrderByDescending(r => r.Likes.Count)
+            .Take(4)
+            .ToListAsync(cancellationToken);
 
-        var response = new RecipeResponseDto(
-            recipe.Id,
-            Title: translation != null ? translation.Title : recipe.Title,
-            Category: recipe.Category,
-            Ingredients: translation != null ? translation.Ingredients : recipe.Ingredients,
-            Instructions: translation != null ? translation.Instructions : recipe.Instructions,
-            recipe.ImageUrl,
-            recipe.ThumbnailUrl,
-            Language: lang,
-            Status: recipe.Status,
-            recipe.CreatedAt
-        );
+        if (similar.Count < 4)
+        {
+            var extra = await BaseRecipeQuery()
+                .Where(r => r.Status == "approved" && r.Id != recipe.Id && !similar.Select(s => s.Id).Contains(r.Id))
+                .OrderByDescending(r => r.CreatedAt)
+                .Take(4 - similar.Count)
+                .ToListAsync(cancellationToken);
+            similar.AddRange(extra);
+        }
 
-        return Ok(response);
+        return Ok(similar.Select(r => RecipeMapper.ToCard(r, lang)));
     }
 
-    // POST: api/v1/recipes
+    [HttpGet("{idOrSlug}")]
+    public async Task<IActionResult> GetById(string idOrSlug, [FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
+    {
+        var recipe = await FindRecipeAsync(idOrSlug, cancellationToken);
+        if (recipe == null) return NotFound();
+
+        TryGetUserId(out var userId);
+        var isOwnerOrAdmin = userId == recipe.AuthorId || User.IsInRole("Admin");
+        if (recipe.Status != "approved" && !isOwnerOrAdmin)
+            return NotFound();
+
+        if (recipe.Status == "approved" && userId != recipe.AuthorId)
+        {
+            recipe.ViewCount++;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        return Ok(RecipeMapper.ToDetail(recipe, lang, userId == 0 ? null : userId));
+    }
+
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> Create([FromForm] CreateRecipeDto dto, CancellationToken cancellationToken)
     {
-        string? imageUrl = null;
-        string? thumbnailUrl = null;
+        if (!TryGetUserId(out var authorId))
+            return Unauthorized();
 
-        if (dto.ImageFile != null && dto.ImageFile.Length > 0)
-        {
-            var uploadResult = await _fileStorage.SaveFileAsync(dto.ImageFile, "uploads");
-            imageUrl = uploadResult.MainImageUrl;
-            thumbnailUrl = uploadResult.ThumbnailUrl;
-        }
-
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        int.TryParse(userIdClaim, out int authorId);
+        var isAdmin = User.IsInRole("Admin");
+        var (imageUrl, thumbnailUrl) = await SaveImageAsync(dto.ImageFile, cancellationToken);
+        var category = await ResolveCategoryAsync(dto, cancellationToken);
 
         var recipe = new Recipe
         {
             Title = dto.Title,
-            Category = dto.Category,
+            Category = category.Name,
+            CategoryId = category.Id,
             Ingredients = dto.Ingredients,
             Instructions = dto.Instructions,
             ImageUrl = imageUrl,
             ThumbnailUrl = thumbnailUrl,
             AuthorId = authorId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            Status = isAdmin ? "approved" : "pending",
+            IsFeatured = isAdmin && dto.IsFeatured,
+            PrepTimeMinutes = dto.PrepTimeMinutes,
+            CookTimeMinutes = dto.CookTimeMinutes,
+            Servings = dto.Servings <= 0 ? 4 : dto.Servings,
+            Difficulty = string.IsNullOrWhiteSpace(dto.Difficulty) ? "medium" : dto.Difficulty
         };
 
-        string titleEn = await _translationService.TranslateAsync(dto.Title, "en", "bg");
-        string ingredientsEn = await _translationService.TranslateAsync(dto.Ingredients, "en", "bg");
-        string instructionsEn = await _translationService.TranslateAsync(dto.Instructions, "en", "bg");
+        ApplyStructuredContent(recipe, dto);
+        recipe.Slug = SlugHelper.Unique(
+            SlugHelper.Slugify(recipe.Title),
+            s => _context.Recipes.Any(r => r.Slug == s));
 
-        recipe.Translations.Add(new RecipeTranslation
-        {
-            Language = "en",
-            Title = titleEn,
-            Ingredients = ingredientsEn,
-            Instructions = instructionsEn
-        });
+        await AddEnglishTranslationAsync(recipe, cancellationToken);
 
         _context.Recipes.Add(recipe);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return CreatedAtAction(nameof(GetById), new { id = recipe.Id }, recipe);
+        return CreatedAtAction(nameof(GetById), new { idOrSlug = recipe.Slug }, RecipeMapper.ToDetail(recipe, "bg", authorId));
     }
 
-    // PUT: api/v1/recipes/5
     [HttpPut("{id}")]
     [Authorize]
     public async Task<IActionResult> Update(int id, [FromForm] RecipeUpdateDto dto, CancellationToken cancellationToken)
     {
-        var recipe = await _context.Recipes
-            .Include(r => r.Translations)
-            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
-
+        var recipe = await FindRecipeAsync(id.ToString(), cancellationToken);
         if (recipe == null) return NotFound();
 
-        // Проверка за собственост или Admin роля
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        int.TryParse(userIdClaim, out int currentUserId);
-        var isAdmin = User.IsInRole("Admin");
-
-        if (recipe.AuthorId != currentUserId && !isAdmin)
-        {
+        if (!CanEdit(recipe))
             return Forbid();
-        }
 
         if (dto.ImageFile != null && dto.ImageFile.Length > 0)
         {
             if (!string.IsNullOrEmpty(recipe.ImageUrl)) _fileStorage.DeleteFile(recipe.ImageUrl);
             if (!string.IsNullOrEmpty(recipe.ThumbnailUrl)) _fileStorage.DeleteFile(recipe.ThumbnailUrl);
-
-            var uploadResult = await _fileStorage.SaveFileAsync(dto.ImageFile, "uploads");
-            recipe.ImageUrl = uploadResult.MainImageUrl;
-            recipe.ThumbnailUrl = uploadResult.ThumbnailUrl;
+            var upload = await SaveImageAsync(dto.ImageFile, cancellationToken);
+            recipe.ImageUrl = upload.imageUrl;
+            recipe.ThumbnailUrl = upload.thumbnailUrl;
         }
 
+        var category = await ResolveCategoryAsync(dto, cancellationToken);
         recipe.Title = dto.Title;
-        recipe.Category = dto.Category;
+        recipe.Category = category.Name;
+        recipe.CategoryId = category.Id;
         recipe.Ingredients = dto.Ingredients;
         recipe.Instructions = dto.Instructions;
+        recipe.PrepTimeMinutes = dto.PrepTimeMinutes;
+        recipe.CookTimeMinutes = dto.CookTimeMinutes;
+        recipe.Servings = dto.Servings <= 0 ? recipe.Servings : dto.Servings;
+        recipe.Difficulty = string.IsNullOrWhiteSpace(dto.Difficulty) ? recipe.Difficulty : dto.Difficulty;
+        if (User.IsInRole("Admin"))
+            recipe.IsFeatured = dto.IsFeatured;
 
-        string titleEn = await _translationService.TranslateAsync(dto.Title, "en", "bg");
-        string ingredientsEn = await _translationService.TranslateAsync(dto.Ingredients, "en", "bg");
-        string instructionsEn = await _translationService.TranslateAsync(dto.Instructions, "en", "bg");
+        ApplyStructuredContent(recipe, dto, replace: true);
+        await AddEnglishTranslationAsync(recipe, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(RecipeMapper.ToDetail(recipe, "bg", recipe.AuthorId));
+    }
+
+    [HttpPost("{id}/approve")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Approve(int id, CancellationToken cancellationToken)
+    {
+        var recipe = await _context.Recipes.FindAsync(new object[] { id }, cancellationToken);
+        if (recipe == null) return NotFound();
+        recipe.Status = "approved";
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(new { recipe.Id, recipe.Status });
+    }
+
+    [HttpPost("{id}/reject")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Reject(int id, CancellationToken cancellationToken)
+    {
+        var recipe = await _context.Recipes.FindAsync(new object[] { id }, cancellationToken);
+        if (recipe == null) return NotFound();
+        recipe.Status = "rejected";
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(new { recipe.Id, recipe.Status });
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize]
+    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
+    {
+        var recipe = await _context.Recipes.FindAsync(new object[] { id }, cancellationToken);
+        if (recipe == null) return NotFound();
+        if (!CanEdit(recipe))
+            return Forbid();
+
+        if (!string.IsNullOrEmpty(recipe.ImageUrl)) _fileStorage.DeleteFile(recipe.ImageUrl);
+        if (!string.IsNullOrEmpty(recipe.ThumbnailUrl)) _fileStorage.DeleteFile(recipe.ThumbnailUrl);
+
+        _context.Recipes.Remove(recipe);
+        await _context.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    private IQueryable<Recipe> BaseRecipeQuery() =>
+        _context.Recipes
+            .Include(r => r.Translations)
+            .Include(r => r.Author)
+            .Include(r => r.CategoryEntity)
+            .Include(r => r.Likes)
+            .Include(r => r.Comments)
+            .Include(r => r.Favorites)
+            .Include(r => r.Ratings)
+            .Include(r => r.IngredientItems)
+            .Include(r => r.Steps);
+
+    private async Task<Recipe?> FindRecipeAsync(string idOrSlug, CancellationToken cancellationToken)
+    {
+        var query = BaseRecipeQuery().AsQueryable();
+        if (int.TryParse(idOrSlug, out var id))
+            return await query.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        return await query.FirstOrDefaultAsync(r => r.Slug == idOrSlug, cancellationToken);
+    }
+
+    private bool TryGetUserId(out int userId)
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(claim, out userId);
+    }
+
+    private bool CanEdit(Recipe recipe)
+    {
+        TryGetUserId(out var currentUserId);
+        return recipe.AuthorId == currentUserId || User.IsInRole("Admin");
+    }
+
+    private async Task<(string? imageUrl, string? thumbnailUrl)> SaveImageAsync(IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+            return (null, null);
+        var upload = await _fileStorage.SaveFileAsync(file, "uploads", cancellationToken);
+        return (upload.MainImageUrl, upload.ThumbnailUrl);
+    }
+
+    private async Task<Category> ResolveCategoryAsync(CreateRecipeDto dto, CancellationToken cancellationToken)
+    {
+        Category? category = null;
+        if (dto.CategoryId.HasValue)
+            category = await _context.Categories.FindAsync(dto.CategoryId.Value);
+        if (category == null && !string.IsNullOrWhiteSpace(dto.Category))
+        {
+            category = await _context.Categories.FirstOrDefaultAsync(c =>
+                c.Slug == dto.Category || c.Name == dto.Category, cancellationToken);
+        }
+        category ??= await _context.Categories.OrderBy(c => c.SortOrder).FirstAsync(cancellationToken);
+        return category;
+    }
+
+    private static void ApplyStructuredContent(Recipe recipe, CreateRecipeDto dto, bool replace = false)
+    {
+        var ingredientLines = ParseIngredients(dto);
+        var stepLines = ParseSteps(dto);
+
+        if (ingredientLines.Count > 0)
+        {
+            if (replace)
+                recipe.IngredientItems.Clear();
+            foreach (var item in ingredientLines)
+                recipe.IngredientItems.Add(item);
+            recipe.Ingredients = string.Join('\n', ingredientLines.Select(i =>
+                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"));
+        }
+        else if (!string.IsNullOrWhiteSpace(dto.Ingredients))
+        {
+            if (replace)
+                recipe.IngredientItems.Clear();
+            var lines = RecipeMapper.SplitLines(dto.Ingredients);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var parsed = RecipeMapper.ParseIngredient(lines[i]);
+                recipe.IngredientItems.Add(new RecipeIngredient
+                {
+                    SortOrder = i,
+                    Amount = parsed.Amount,
+                    Name = parsed.Name
+                });
+            }
+        }
+
+        if (stepLines.Count > 0)
+        {
+            if (replace)
+                recipe.Steps.Clear();
+            foreach (var step in stepLines)
+                recipe.Steps.Add(step);
+            recipe.Instructions = string.Join('\n', stepLines.Select(s => s.Text));
+        }
+        else if (!string.IsNullOrWhiteSpace(dto.Instructions))
+        {
+            if (replace)
+                recipe.Steps.Clear();
+            var lines = RecipeMapper.SplitLines(dto.Instructions);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                recipe.Steps.Add(new RecipeStep { SortOrder = i + 1, Text = lines[i] });
+            }
+        }
+    }
+
+    private static List<RecipeIngredient> ParseIngredients(CreateRecipeDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.IngredientsJson))
+            return [];
+        try
+        {
+            var items = JsonSerializer.Deserialize<List<IngredientLineDto>>(dto.IngredientsJson, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? [];
+            return items.Select((item, i) => new RecipeIngredient
+            {
+                SortOrder = i,
+                Amount = item.Amount ?? "",
+                Name = item.Name
+            }).Where(i => !string.IsNullOrWhiteSpace(i.Name)).ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static List<RecipeStep> ParseSteps(CreateRecipeDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.StepsJson))
+            return [];
+        try
+        {
+            var items = JsonSerializer.Deserialize<List<StepLineDto>>(dto.StepsJson, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? [];
+            return items.Select((item, i) => new RecipeStep
+            {
+                SortOrder = item.SortOrder == 0 ? i + 1 : item.SortOrder,
+                Text = item.Text
+            }).Where(s => !string.IsNullOrWhiteSpace(s.Text)).ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private async Task AddEnglishTranslationAsync(Recipe recipe, CancellationToken cancellationToken)
+    {
+        string titleEn = await _translationService.TranslateAsync(recipe.Title, "en", "bg", cancellationToken);
+        string ingredientsEn = await _translationService.TranslateAsync(recipe.Ingredients, "en", "bg", cancellationToken);
+        string instructionsEn = await _translationService.TranslateAsync(recipe.Instructions, "en", "bg", cancellationToken);
 
         var enTranslation = recipe.Translations.FirstOrDefault(t => t.Language.ToLower() == "en");
         if (enTranslation != null)
@@ -189,35 +490,5 @@ public class RecipesController : ControllerBase
                 Instructions = instructionsEn
             });
         }
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return Ok(recipe);
-    }
-
-    // DELETE: api/v1/recipes/5
-    [HttpDelete("{id}")]
-    [Authorize]
-    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
-    {
-        var recipe = await _context.Recipes.FindAsync(new object[] { id }, cancellationToken);
-        if (recipe == null) return NotFound();
-
-        // Проверка за собственост или Admin роля
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        int.TryParse(userIdClaim, out int currentUserId);
-        var isAdmin = User.IsInRole("Admin");
-
-        if (recipe.AuthorId != currentUserId && !isAdmin)
-        {
-            return Forbid();
-        }
-
-        if (!string.IsNullOrEmpty(recipe.ImageUrl)) _fileStorage.DeleteFile(recipe.ImageUrl);
-        if (!string.IsNullOrEmpty(recipe.ThumbnailUrl)) _fileStorage.DeleteFile(recipe.ThumbnailUrl);
-
-        _context.Recipes.Remove(recipe);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return NoContent();
     }
 }

@@ -16,11 +16,16 @@ export default function EditRecipe() {
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0); // Състояние за прогрес бара
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState('');
 
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5011';
     const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.gif'];
+
+    const getImageUrl = (imagePath) => {
+        if (!imagePath) return '/no-image.jpg';
+        if (imagePath.startsWith('http')) return imagePath;
+        return imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+    };
 
     useEffect(() => {
         const fetchRecipe = async () => {
@@ -34,10 +39,7 @@ export default function EditRecipe() {
                 setInstructions(recipe.instructions || '');
 
                 if (recipe.imageUrl) {
-                    const fullUrl = recipe.imageUrl.startsWith('http')
-                        ? recipe.imageUrl
-                        : `${BASE_URL}${recipe.imageUrl.startsWith('/') ? '' : '/'}${recipe.imageUrl}`;
-                    setPreviewUrl(fullUrl);
+                    setPreviewUrl(getImageUrl(recipe.imageUrl));
                 }
             } catch (err) {
                 setError('Грешка при зареждане на рецептата.');
@@ -48,7 +50,7 @@ export default function EditRecipe() {
         };
 
         fetchRecipe();
-    }, [id, BASE_URL]);
+    }, [id]);
 
     useEffect(() => {
         return () => {
@@ -92,17 +94,17 @@ export default function EditRecipe() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
-        setUploadProgress(0); // Зануляваме прогреса при старт
+        setUploadProgress(0);
         setError('');
 
         const formData = new FormData();
-        formData.append('title', title);
-        formData.append('category', category);
-        formData.append('ingredients', ingredients);
-        formData.append('instructions', instructions);
+        formData.append('Title', title);
+        formData.append('Category', category);
+        formData.append('Ingredients', ingredients);
+        formData.append('Instructions', instructions);
 
         if (selectedFile) {
-            formData.append('imageFile', selectedFile);
+            formData.append('ImageFile', selectedFile);
         }
 
         try {
@@ -170,21 +172,21 @@ export default function EditRecipe() {
 
                 <div>
                     <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>
-                        Снимка на ястието (JPG, PNG, WEBP, HEIC, HEIF, AVIF, GIF до 10MB):
+                        Снимка на ястието (JPG, PNG, WEBP до 10MB):
                     </label>
                     <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,image/gif,.heic,.heif,.avif,.gif"
+                        accept="image/*"
                         onChange={handleFileChange}
                         style={{ marginTop: '0.3rem' }}
                     />
                     {previewUrl && (
-                        <div style={{ marginTop: '0.8rem' }}>
+                        <div style={{ marginTop: '0.8rem', backgroundColor: '#f9f9f9', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', textAlign: 'center' }}>
                             <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.9rem', color: '#666' }}>Преглед:</p>
                             <img
                                 src={previewUrl}
                                 alt="Преглед"
-                                style={{ width: '160px', height: '110px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #ddd' }}
+                                style={{ width: '100%', maxHeight: '250px', objectFit: 'contain', borderRadius: '6px' }}
                             />
                         </div>
                     )}
@@ -214,7 +216,6 @@ export default function EditRecipe() {
                     />
                 </div>
 
-                {/* Лента за напредък (Progress Bar) при редакция */}
                 {submitting && (
                     <div style={{ marginBottom: '0.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
