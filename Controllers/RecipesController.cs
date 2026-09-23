@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System;
+using System.Text.Json;
 using CulinaryBlog.Data;
 using CulinaryBlog.DTOs;
 using CulinaryBlog.Helpers;
@@ -8,7 +9,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-
+using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Http;
+using System.Threading.Tasks;
+    
 namespace CulinaryBlog.Controllers;
 
 [ApiController]
@@ -24,7 +30,7 @@ public class RecipesController : ControllerBase
         IFileStorageService fileStorage,
         TranslationService translationService)
     {
-        _context = context;
+        _context = context; 
         _fileStorage = fileStorage;
         _translationService = translationService;
     }
@@ -234,8 +240,111 @@ public class RecipesController : ControllerBase
 
         await AddEnglishTranslationAsync(recipe, cancellationToken);
 
+        // Media handling:
+        // 1) validate files (counts, sizes)
+        // 2) save temp files and add RecipeMedia entries with State="processing"
+        // 3) _context.Recipes.Add(recipe); await _context.SaveChangesAsync();
+        // 4) enqueue background processing job with recipe.Id (fire-and-forget placeholder)
+        // 5) return CreatedAtAction(...);
+
+        // Collect additional media files from form (exclude primary image file if present)
+        var formFiles = Request?.Form?.Files?.ToList() ?? new List<IFormFile>();
+        var additionalFiles = formFiles.Where(f => dto.ImageFile == null || !ReferenceEquals(f, dto.ImageFile)).ToList();
+
+        const int maxFiles = 10;
+        const long maxFileSizeBytes = 50L * 1024 * 1024; // 50 MB per file
+
+        if (additionalFiles.Count > maxFiles)
+            return BadRequest(new { error = $"Max {maxFiles} media files are allowed." });
+
+        var mediaEntities = new List<RecipeMedia>();
+        for (var i = 0; i < additionalFiles.Count; i++)
+        {
+            var file = additionalFiles[i];
+            if (file.Length == 0 || file.Length > maxFileSizeBytes)
+                return BadRequest(new { error = $"File '{file.FileName}' is empty or exceeds size limit." });
+
+            // determine media type
+            string mediaType = "image";
+            if (!string.IsNullOrEmpty(file.ContentType) && file.ContentType.StartsWith("video"))
+                mediaType = "video";
+            else
+            {
+                try
+                {
+                    using var stream = file.OpenReadStream();
+                    if (!LooksLikeImage(stream))
+                    {
+                        // if not recognized as image and content type is not video, treat as video
+                        if (!file.ContentType.StartsWith("image"))
+                            mediaType = "video";
+                    }
+                }
+                catch
+                {
+                    mediaType = "video";
+                }
+            }
+
+            // save to temporary storage
+            var upload = await _fileStorage.SaveFileAsync(file, "temp", cancellationToken);
+            var url = upload?.MainImageUrl ?? string.Empty;
+            var thumb = upload?.ThumbnailUrl;
+
+            var media = new RecipeMedia
+            {
+                Url = url,
+                ThumbnailUrl = thumb,
+                MediaType = mediaType,
+                SortOrder = i,
+                IsPrimary = false,
+                State = "processing",
+                UploadedAt = DateTime.UtcNow,
+                UploadedBy = authorId
+            };
+            mediaEntities.Add(media);
+        }
+
+        // Persist recipe to obtain Id
         _context.Recipes.Add(recipe);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Attach media entities to the saved recipe and persist
+        if (mediaEntities.Count > 0)
+        {
+            foreach (var m in mediaEntities)
+                m.RecipeId = recipe.Id;
+            _context.Set<RecipeMedia>().AddRange(mediaEntities);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        // Fire-and-forget background processing placeholder:
+        // In production use a proper background queue / worker (e.g., Hangfire, BackgroundService, Azure WebJobs).
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var services = HttpContext.RequestServices;
+                var scopedDb = services.GetRequiredService<ApplicationDbContext>();
+                var toProcess = await scopedDb.Set<RecipeMedia>()
+                    .Where(m => m.RecipeId == recipe.Id && m.State == "processing")
+                    .ToListAsync();
+
+                foreach (var m in toProcess)
+                {
+                    // Placeholder processing: in a real worker generate thumbnails/transcodes and update URLs.
+                    // Here we mark as ready.
+                    m.State = "ready";
+                    // Optionally set ThumbnailUrl if missing, etc.
+                }
+
+                await scopedDb.SaveChangesAsync();
+            }
+            catch
+            {
+                // swallow for now; consider logging
+            }
+        });
 
         return CreatedAtAction(nameof(GetById), new { idOrSlug = recipe.Slug }, RecipeMapper.ToDetail(recipe, "bg", authorId));
     }
@@ -327,7 +436,8 @@ public class RecipesController : ControllerBase
             .Include(r => r.Favorites)
             .Include(r => r.Ratings)
             .Include(r => r.IngredientItems)
-            .Include(r => r.Steps);
+            .Include(r => r.Steps)
+            .Include(r => r.Media);
 
     private async Task<Recipe?> FindRecipeAsync(string idOrSlug, CancellationToken cancellationToken)
     {
@@ -361,7 +471,22 @@ public class RecipesController : ControllerBase
     {
         Category? category = null;
         if (dto.CategoryId.HasValue)
-            category = await _context.Categories.FindAsync(dto.CategoryId.Value);
+            category = await _context.Categories.FindAsync(new object[] { dto.CategoryId.Value }, cancellationToken);
+        if (category == null && !string.IsNullOrWhiteSpace(dto.Category))
+        {
+            category = await _context.Categories.FirstOrDefaultAsync(c =>
+                c.Slug == dto.Category || c.Name == dto.Category, cancellationToken);
+        }
+        category ??= await _context.Categories.OrderBy(c => c.SortOrder).FirstAsync(cancellationToken);
+        return category;
+    }
+
+    // overload for update DTO
+    private async Task<Category> ResolveCategoryAsync(RecipeUpdateDto dto, CancellationToken cancellationToken)
+    {
+        Category? category = null;
+        if (dto.CategoryId.HasValue)
+            category = await _context.Categories.FindAsync(new object[] { dto.CategoryId.Value }, cancellationToken);
         if (category == null && !string.IsNullOrWhiteSpace(dto.Category))
         {
             category = await _context.Categories.FirstOrDefaultAsync(c =>
@@ -425,36 +550,36 @@ public class RecipesController : ControllerBase
     private static List<RecipeIngredient> ParseIngredients(CreateRecipeDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.IngredientsJson))
-            return [];
+            return new List<RecipeIngredient>();
         try
         {
             var items = JsonSerializer.Deserialize<List<IngredientLineDto>>(dto.IngredientsJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
-            }) ?? [];
+            }) ?? new List<IngredientLineDto>();
             return items.Select((item, i) => new RecipeIngredient
             {
                 SortOrder = i,
-                Amount = item.Amount ?? "",
+                Amount = item.Amount ?? string.Empty,
                 Name = item.Name
             }).Where(i => !string.IsNullOrWhiteSpace(i.Name)).ToList();
         }
         catch
         {
-            return [];
+            return new List<RecipeIngredient>();
         }
     }
 
     private static List<RecipeStep> ParseSteps(CreateRecipeDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.StepsJson))
-            return [];
+            return new List<RecipeStep>();
         try
         {
             var items = JsonSerializer.Deserialize<List<StepLineDto>>(dto.StepsJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
-            }) ?? [];
+            }) ?? new List<StepLineDto>();
             return items.Select((item, i) => new RecipeStep
             {
                 SortOrder = item.SortOrder == 0 ? i + 1 : item.SortOrder,
@@ -463,7 +588,7 @@ public class RecipesController : ControllerBase
         }
         catch
         {
-            return [];
+            return new List<RecipeStep>();
         }
     }
 
@@ -489,6 +614,43 @@ public class RecipesController : ControllerBase
                 Ingredients = ingredientsEn,
                 Instructions = instructionsEn
             });
+        }
+    }
+
+    // helper - check first bytes for common image signatures
+    public static bool LooksLikeImage(Stream s)
+    {
+        if (s == null || !s.CanRead)
+            return false;
+
+        var originalPosition = 0L;
+        try
+        {
+            if (s.CanSeek)
+            {
+                originalPosition = s.Position;
+                s.Position = 0;
+            }
+
+            var header = new byte[12];
+            var read = s.Read(header, 0, header.Length);
+
+            // JPEG: FF D8
+            if (read >= 2 && header[0] == 0xFF && header[1] == 0xD8) return true;
+            // PNG: 89 50 4E
+            if (read >= 3 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E) return true;
+            // WEBP: "RIFF" ... "WEBP"
+            if (read >= 12 && header[0] == (byte)'R' && header[1] == (byte)'I' && header[8] == (byte)'W' && header[9] == (byte)'E')
+                return true;
+
+            return false;
+        }
+        finally
+        {
+            if (s.CanSeek)
+            {
+                s.Position = originalPosition;
+            }
         }
     }
 }

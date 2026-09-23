@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Collections.Generic;
 
 namespace CulinaryBlog.Models;
 
@@ -54,4 +55,7 @@ public class Recipe
     public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
     public ICollection<RecipeIngredient> IngredientItems { get; set; } = new List<RecipeIngredient>();
     public ICollection<RecipeStep> Steps { get; set; } = new List<RecipeStep>();
+
+    // Added: recipe-level media (images, videos)
+    public ICollection<RecipeMedia> Media { get; set; } = new List<RecipeMedia>();
 }

@@ -18,6 +18,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
     public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
     public DbSet<Article> Articles => Set<Article>();
+    public DbSet<RecipeMedia> RecipeMedia => Set<RecipeMedia>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,5 +108,15 @@ public class ApplicationDbContext : DbContext
             .WithMany(r => r.Steps)
             .HasForeignKey(s => s.RecipeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RecipeMedia>()
+            .HasOne(m => m.Recipe)
+            .WithMany(r => r.Media)
+            .HasForeignKey(m => m.RecipeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RecipeMedia>()
+            .HasIndex(m => new { m.RecipeId, m.SortOrder });
     }
+    
 }

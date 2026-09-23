@@ -12,7 +12,7 @@ public static class RecipeMapper
             ? (string.IsNullOrWhiteSpace(r.CategoryEntity.NameEn) ? r.CategoryEntity.Name : r.CategoryEntity.NameEn)
             : (r.CategoryEntity?.Name ?? r.Category);
         var title = translation != null ? translation.Title : r.Title;
-        var ratings = r.Ratings?.ToList() ?? [];
+        var ratings = r.Ratings?.ToList() ?? new List<Rating>();
         var avg = ratings.Count == 0 ? 0 : Math.Round(ratings.Average(x => x.Value), 1);
 
         return new RecipeCardDto(
@@ -90,7 +90,7 @@ public static class RecipeMapper
 
     public static List<string> SplitLines(string text) =>
         (text ?? string.Empty)
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
 
     public static IngredientLineDto ParseIngredient(string line)

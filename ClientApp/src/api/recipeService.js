@@ -27,3 +27,6 @@ export const addComment = (recipeId, content) => api.post(`/recipes/${recipeId}/
 export const toggleLike = (recipeId) => api.post(`/recipes/${recipeId}/like`).then((r) => r.data);
 export const toggleFavorite = (recipeId) => api.post(`/recipes/${recipeId}/favorite`).then((r) => r.data);
 export const rateRecipe = (recipeId, value) => api.post(`/recipes/${recipeId}/rate`, { value }).then((r) => r.data);
+
+// Backwards-compatible alias for older imports
+export const getAllRecipes = listRecipes;

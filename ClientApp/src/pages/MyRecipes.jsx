@@ -6,11 +6,22 @@ import api from '../api/axios';
 export default function MyRecipes() {
     const [recipes, setRecipes] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         getMyRecipes()
-            .then((data) => setRecipes(data))
-            .catch((err) => console.error('Грешка при зареждане:', err))
+            .then((data) => {
+                // Гарантираме, че пазим масив, дори и бекендът да върне нещо друго
+                if (Array.isArray(data)) {
+                    setRecipes(data);
+                } else {
+                    setRecipes([]);
+                }
+            })
+            .catch((err) => {
+                console.error('Грешка при зареждане:', err);
+                setError('Не успяхме да заредим вашите рецепти.');
+            })
             .finally(() => setLoading(false));
     }, []);
 
@@ -27,20 +38,20 @@ export default function MyRecipes() {
     const getImageUrl = (imagePath) => {
         if (!imagePath) return '/no-image.jpg';
         if (imagePath.startsWith('http')) return imagePath;
-        // /uploads/xxxx.webp -> http://localhost:5000/uploads/xxxx.webp
         return imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
     };
 
     if (loading) return <p style={{ textAlign: 'center', padding: '2rem' }}>Зареждане...</p>;
+    if (error) return <p style={{ textAlign: 'center', color: 'red', padding: '2rem' }}>{error}</p>;
 
     return (
         <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
             <h2>Моите качени рецепти</h2>
-            {recipes.length === 0 ? (
+            {!recipes || recipes.length === 0 ? (
                 <p>Все още нямате качени рецепти.</p>
             ) : (
                 <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
-                    {recipes.map((recipe) => (
+                    {recipes?.map((recipe) => (
                         <div key={recipe.id} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px' }}>
                             <img
                                 src={getImageUrl(recipe.thumbnailUrl || recipe.imageUrl)}

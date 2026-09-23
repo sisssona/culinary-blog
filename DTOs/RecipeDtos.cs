@@ -25,6 +25,10 @@ public class CreateRecipeDto
 
     [AllowedExtensions(".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif", ".gif")]
     public IFormFile? ImageFile { get; set; }
+
+    public List<IFormFile>? Images { get; set; }
+    public List<IFormFile>? Videos { get; set; }
+    public bool PublishWithoutImage { get; set; } = true; // optional policy flag
 }
 
 public class RecipeUpdateDto : CreateRecipeDto

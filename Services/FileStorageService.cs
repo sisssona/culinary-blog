@@ -1,4 +1,4 @@
-﻿using ImageMagick;
+using ImageMagick;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -73,7 +73,6 @@ public class FileStorageService : IFileStorageService
                 thumbImage.AutoOrient();
                 thumbImage.Resize(new MagickGeometry(300, 300) { FillArea = true });
                 thumbImage.Crop(300, 300, Gravity.Center);
-                thumbImage.RePage();
                 thumbImage.Format = MagickFormat.WebP;
                 thumbImage.Quality = 80;
                 await thumbImage.WriteAsync(thumbFilePath);

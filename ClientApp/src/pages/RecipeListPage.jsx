@@ -12,7 +12,13 @@ export default function RecipeList({ lang }) {
     useEffect(() => {
         setLoading(true);
         api.get(`/recipes?lang=${lang}`)
-            .then((res) => setRecipes(res.data))
+            .then((res) => {
+                if (Array.isArray(res.data)) {
+                    setRecipes(res.data);
+                } else {
+                    setRecipes([]);
+                }
+            })
             .catch((err) => {
                 console.error("Грешка при вземане на рецептите:", err);
                 setError("Не успяхме да заредим рецептите.");
@@ -23,17 +29,16 @@ export default function RecipeList({ lang }) {
     const getImageUrl = (imagePath) => {
         if (!imagePath) return '/no-image.jpg';
         if (imagePath.startsWith('http')) return imagePath;
-        // /uploads/xxxx.webp -> http://localhost:5000/uploads/xxxx.webp
         return imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
     };
 
     if (loading) return <p style={{ textAlign: 'center', padding: '2rem' }}>Зареждане...</p>;
     if (error) return <p style={{ textAlign: 'center', color: 'red', padding: '2rem' }}>{error}</p>;
-    if (recipes.length === 0) return <p style={{ textAlign: 'center', padding: '2rem' }}>Няма рецепти.</p>;
+    if (!recipes || recipes.length === 0) return <p style={{ textAlign: 'center', padding: '2rem' }}>Няма рецепти.</p>;
 
     return (
         <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-            {recipes.map((recipe) => (
+            {recipes?.map((recipe) => (
                 <div key={recipe.id} style={{ border: '1px solid #e0e0e0', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <img
                         src={getImageUrl(recipe.thumbnailUrl || recipe.imageUrl)}
