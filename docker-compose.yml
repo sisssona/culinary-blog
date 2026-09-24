@@ -33,7 +33,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=Host=postgres_db;Port=5432;Database=CulinaryBlogDb;Username=postgres;Password=${POSTGRES_PASSWORD:-YourSecurePassword123!}
+      - ConnectionStrings__DefaultConnection=Host=postgres_db;Port=5432;Database=culinary_blog_db;Username=postgres;Password=${POSTGRES_PASSWORD:-Sa12341234.}
       - Jwt__Key=${JWT_KEY:-SuperSecretKeyForJwtAuthentication1234567890!}
       - Jwt__Issuer=CulinaryBlog
       - Jwt__Audience=CulinaryBlogUsers
