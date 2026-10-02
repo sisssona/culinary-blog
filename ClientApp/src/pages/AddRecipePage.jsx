@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import CategorySelect from '../components/CategorySelect';
 import ImageDropzone from '../components/ImageDropzone';
+import TagInput from '../components/TagInput';
+import RecipeGuidelines from '../components/RecipeGuidelines';
+
+const MIN_TAGS = 3;
+const MAX_TAGS = 6;
 
 export default function AddRecipePage() {
     const navigate = useNavigate();
@@ -17,6 +22,8 @@ export default function AddRecipePage() {
     const [difficulty, setDifficulty] = useState('medium');
 
     const [imageFile, setImageFile] = useState(null);
+    const [selectedTags, setSelectedTags] = useState([]);
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [loading, setLoading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState('');
@@ -25,22 +32,62 @@ export default function AddRecipePage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
         setError('');
+
+        if (selectedTags.length < MIN_TAGS || selectedTags.length > MAX_TAGS) {
+            setError(`Моля, изберете между ${MIN_TAGS} и ${MAX_TAGS} тага за рецептата.`);
+            return;
+        }
+
+        if (!agreedToTerms) {
+            setError('Моля, потвърдете условията за публикуване, преди да продължите.');
+            return;
+        }
+
+        setLoading(true);
         setUploadProgress(0);
 
         abortControllerRef.current = new AbortController();
 
         try {
+            // Парсиране на съставките от текстовото поле в обектен масив (ако е необходимо за бекенда)
+            const parsedIngredients = ingredients
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .map(line => {
+                    // Опитваме се да разделим количество и име (напр. "2 яйца" -> Amount: "2", Name: "яйца")
+                    const match = line.match(/^([\d\u00BC-\u00BE\u2152-\u215E\/.,\s-]+)?(.*)$/);
+                    return {
+                        Amount: match && match[1] ? match[1].trim() : '',
+                        Name: match && match[2] ? match[2].trim() : line
+                    };
+                });
+
+            // Парсиране на стъпките за готвене
+            const parsedSteps = instructions
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .map((text, index) => ({
+                    SortOrder: index + 1,
+                    Text: text,
+                    ImageUrl: null
+                }));
+
             const formData = new FormData();
             formData.append('Title', title);
             formData.append('CategoryId', categoryId);
             formData.append('Ingredients', ingredients);
             formData.append('Instructions', instructions);
+            formData.append('IngredientsJson', JSON.stringify(parsedIngredients));
+            formData.append('StepsJson', JSON.stringify(parsedSteps));
             formData.append('PrepTimeMinutes', prepTimeMinutes);
             formData.append('CookTimeMinutes', cookTimeMinutes);
             formData.append('Servings', servings);
             formData.append('Difficulty', difficulty);
+            formData.append('AgreedToTerms', agreedToTerms);
+            formData.append('TagsJson', JSON.stringify(selectedTags.map((t) => t.id)));
 
             if (imageFile) {
                 formData.append('ImageFile', imageFile);
@@ -58,7 +105,8 @@ export default function AddRecipePage() {
 
             navigate('/');
         } catch (err) {
-            setError('Грешка при запис на рецептата.');
+            const serverMessage = err.response?.data?.error;
+            setError(serverMessage || 'Грешка при запис на рецептата.');
         } finally {
             setLoading(false);
         }
@@ -67,6 +115,8 @@ export default function AddRecipePage() {
     return (
         <div className="form-container">
             <h2>Добавяне на нова рецепта</h2>
+
+            <RecipeGuidelines />
 
             {error && <p className="form-error">{error}</p>}
 
@@ -90,11 +140,14 @@ export default function AddRecipePage() {
                         onChange={setCategoryId}
                     />
 
+                    <TagInput selectedTags={selectedTags} onChange={setSelectedTags} />
+
                     <div className="form-group">
                         <label>Продукти:</label>
+                        <p className="field-hint">Пишете всеки продукт на отделен ред, напр. "2 яйца" или "200 г брашно".</p>
                         <textarea
                             className="form-input"
-                            rows="6"
+                            rows="12"
                             value={ingredients}
                             onChange={(e) => setIngredients(e.target.value)}
                         />
@@ -102,9 +155,10 @@ export default function AddRecipePage() {
 
                     <div className="form-group">
                         <label>Начин на приготвяне:</label>
+                        <p className="field-hint">Пишете всяка стъпка на отделен ред — ще се номерират автоматично.</p>
                         <textarea
                             className="form-input"
-                            rows="8"
+                            rows="14"
                             value={instructions}
                             onChange={(e) => setInstructions(e.target.value)}
                             required
@@ -182,6 +236,26 @@ export default function AddRecipePage() {
                             </button>
                         </div>
                     )}
+                </div>
+
+                {/* Условия за публикуване */}
+                <div className="form-group terms-group" style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontWeight: 'normal', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={agreedToTerms}
+                            onChange={(e) => setAgreedToTerms(e.target.checked)}
+                            style={{ marginTop: '4px' }}
+                            required
+                        />
+                        <span>
+                            Потвърждавам, че тази рецепта и качените снимки са мое собствено съдържание (или имам право да ги публикувам),
+                            не нарушават авторски права на трети лица и предоставям на „Вкусни Рецепти“ право да ги показва публично на сайта.
+                            Разбирам, че рецептата ще бъде публикувана веднага и че администраторите могат да я премахнат по всяко време,
+                            ако не отговаря на правилата на общността. Приемам, че рецептите в сайта са публикувани от потребители и не са
+                            професионално проверени — отговорността при алергии, хранителна безопасност и резултат от готвенето е моя.
+                        </span>
+                    </label>
                 </div>
 
                 <button

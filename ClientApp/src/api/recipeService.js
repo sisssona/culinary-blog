@@ -6,7 +6,10 @@ export const mediaUrl = (path) => {
     return path.startsWith('/') ? path : `/${path}`;
 };
 
-export const listRecipes = (params) => api.get('/recipes', { params }).then((r) => r.data);
+export const listRecipes = (params) => {
+    const p = typeof params === 'string' ? { lang: params } : (params || {});
+    return api.get('/recipes', { params: p }).then((r) => r.data);
+};
 export const featuredRecipes = (lang) => api.get('/recipes/featured', { params: { lang } }).then((r) => r.data);
 export const popularRecipes = (lang) => api.get('/recipes/popular', { params: { lang } }).then((r) => r.data);
 export const getRecipe = (idOrSlug, lang) => api.get(`/recipes/${idOrSlug}`, { params: { lang } }).then((r) => r.data);
@@ -27,6 +30,10 @@ export const addComment = (recipeId, content) => api.post(`/recipes/${recipeId}/
 export const toggleLike = (recipeId) => api.post(`/recipes/${recipeId}/like`).then((r) => r.data);
 export const toggleFavorite = (recipeId) => api.post(`/recipes/${recipeId}/favorite`).then((r) => r.data);
 export const rateRecipe = (recipeId, value) => api.post(`/recipes/${recipeId}/rate`, { value }).then((r) => r.data);
+
+// Tags
+export const getTags = () => api.get('/tags').then((r) => r.data);
+export const searchTags = (q) => api.get('/tags/search', { params: { q } }).then((r) => r.data);
 
 // Backwards-compatible alias for older imports
 export const getAllRecipes = listRecipes;

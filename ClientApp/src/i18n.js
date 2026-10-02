@@ -5,6 +5,10 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 const resources = {
     bg: {
         translation: {
+            "home": "Начало",
+            "recipes": "Рецепти",
+            "encyclopedia": "Енциклопедия",
+            "about": "За нас",
             "blog_title": "Вкусни Рецепти",
             "error_loading_recipes": "Грешка при зареждане на рецептите.",
             "btn_login": "Вход",
@@ -19,11 +23,172 @@ const resources = {
             "btn_delete": "🗑️ Изтрий",
             "btn_view_more": "Виж повече →",
             "category_main": "Основни",
-            "confirm_delete": "Сигурни ли сте, че искате да изтриете тази рецепта?"
+            "category_salads": "Салати",
+            "category_desserts": "Десерти",
+            "category_soups": "Супи",
+            "category_quick": "Бързо и лесно",
+            "confirm_delete": "Сигурни ли сте, че искате да изтриете тази рецепта?",
+            "search_placeholder": "Търси рецепти...",
+            "back_to_all": "← Обратно към всички рецепти",
+            "category": "Категория",
+            "ingredients": "Съставки",
+            "instructions": "Инструкции",
+            "edit": "Редактирай",
+            "delete": "Изтрий",
+            "error_loading_recipe": "Не успяхме да заредим рецептата.",
+            "error_deleting_recipe": "Грешка при изтриване на рецептата.",
+            "recipe_not_found": "Рецептата не е намерена.",
+            "btn_back_to_recipes": "← Обратно към всички рецепти",
+            "btn_edit": "Редактирай",
+            "category_label": "Категория",
+            "ingredients_title": "Съставки",
+            "instructions_title": "Инструкции",
+            "error_allowed_formats": "Позволени са само следните формати:",
+            "error_file_size": "Файлът надвишава максималния размер от 10MB.",
+            "error_saving_recipe": "Грешка при запазване на рецептата.",
+            "btn_cancel_and_back": "← Отказ и връщане",
+            "edit_recipe_title": "Редактиране на рецепта",
+            "label_title": "Заглавие:",
+            "label_image": "Снимка на ястието (JPG, PNG, WEBP до 10MB):",
+            "preview": "Преглед:",
+            "ingredients_title_format": "Продукти (по един на нов ред):",
+            "uploading_changes": "Качване на промените...",
+            "processing_image": "Обработка на изображението...",
+            "saving": "Запазване...",
+            "btn_save_changes": "Запази промените",
+       
+            "error_loading_my_recipes": "Не успяхме да заредим вашите рецепти.",
+            "error_deleting": "Грешка при изтриване.",
+            "my_uploaded_recipes": "Моите качени рецепти",
+            "no_uploaded_recipes": "Все още нямате качени рецепти.",
+
+            "error_loading_categories": "Грешка при зареждане на категориите.",
+            "admin_categories_title": "Админ панел — категории",
+            "admin_column_name": "Име",
+            "admin_column_order": "Ред",
+            "admin_column_recipe_count": "Брой рецепти",
+
+            "footer_text": "Вкусни Рецепти",
+
+            "nav": {
+                "hamburgerAria": "Категории меню",
+                "recipeCategories": "Категории рецепти",
+                "allRecipes": "Всички рецепти",
+                "allFromCategory": "Всички от {{name}}",
+                "admin": "Админ"
+            },
+
+            "guidelines": {
+                "title": "Как да добавите добра рецепта",
+                "tip1": "Изберете <strong>между 3 и 6 тага</strong> — те помагат на читателите да намерят рецептата по повод, диета, време за готвене и начин на приготвяне. Твърде малко тагове означава по-трудно откриване; твърде много размива смисъла им.",
+                "tip2": "Изберете най-точната <strong>категория (и подкатегория, ако има)</strong> — това е основният начин, по който рецептата се показва в навигацията на сайта.",
+                "tip3": "Снимка е силно препоръчителна, но не е задължителна за публикуване.",
+                "tip4": "Пишете стъпките ясно и в логически ред — читателите ги следват докато готвят.",
+                "availableTags": "Налични тагове:",
+                "groups": {
+                    "time": "Време и бързина",
+                    "occasion": "Повод",
+                    "diet": "Диета и здраве",
+                    "difficulty": "Трудност и бюджет",
+                    "method": "Начин на приготвяне"
+                }
+            },
+
+            "recipe": {
+                "addTitle": "Добавяне на нова рецепта",
+                "fields": {
+                    "title": "Заглавие:",
+                    "categoryLabel": "Категория:",
+                    "selectCategory": "Изберете категория",
+                    "ingredients": "Продукти:",
+                    "instructions": "Начин на приготвяне:",
+                    "prepTime": "Време за подготовка (мин):",
+                    "cookTime": "Време за готвене (мин):",
+                    "servings": "Порции:",
+                    "difficulty": "Трудност:",
+                    "image": "Снимка на ястието:"
+                },
+                "dropzoneText": "Плъзни снимка тук или избери файл",
+                "previewAlt": "Преглед",
+                "tags": {
+                    "label": "Тагове (изберете между {{min}} и {{max}}):",
+                    "removeAria": "Премахни {{name}}",
+                    "placeholder": "Търсете таг, напр. 'бързо', 'без глутен'...",
+                    "maxReached": "Достигнахте максимума от {{max}} тага.",
+                    "needMore": "Изберете поне още {{count}} таг(а).",
+                    "canContinue": "Може да добавите още тагове или да продължите."
+                },
+                "tagsMapping": {
+                    "byrzo": "Бързо (до 30 мин)",
+                    "super-byrzo": "Супер бързо (до 15 мин)",
+                    "za-vecherya": "За вечеря",
+                    "za-obyad": "За обяд",
+                    "byrza-zakuska": "Бърза закуска",
+                    "podgotovka-predvaritelno": "Подготовка предварително",
+                    "praznichno": "Празнично",
+                    "semeyna-vecherya": "Семейна вечеря",
+                    "za-parti": "За парти",
+                    "sutreshno-kafe": "Сутрешно кафе",
+                    "za-navan": "За на вън",
+                    "koleda": "Коледа",
+                    "velikden-tag": "Великден",
+                    "letni-recepti": "Летни рецепти",
+                    "zimni-recepti": "Зимни рецепти",
+                    "vegetariansko": "Вегетарианско",
+                    "vegan": "Веган",
+                    "postno": "Постно",
+                    "keto": "Кето",
+                    "niskovaglehidratno": "Нисковъглехидратно",
+                    "fitness": "Фитнес",
+                    "visokoproteinovo": "Високопротеиново",
+                    "bez-gluten": "Без глутен",
+                    "bez-laktoza": "Без лактоза",
+                    "bez-zahar": "Без захар",
+                    "diabetno-priyatelsko": "Диабетно приятелско",
+                    "lesno": "Лесно",
+                    "slozhno": "Сложно",
+                    "byudzhetno": "Бюджетно",
+                    "ikonomichno": "Икономично",
+                    "luksozno": "Луксозно",
+                    "na-furna": "На фурна",
+                    "na-skara": "На скара",
+                    "na-tigan": "На тиган",
+                    "v-multikuker": "В мултикукър",
+                    "v-airfryer": "В аърфрайър",
+                    "bez-pechene": "Без печене",
+                    "bavno-gotvene": "Бавно готвене"
+                },
+                "difficulty": {
+                    "easy": "Лесно",
+                    "medium": "Средно",
+                    "hard": "Трудно"
+                },
+                "progress": {
+                    "uploading": "Качване...",
+                    "processing": "Обработка..."
+                },
+                "submitButton": "Публикувай рецептата",
+                "submitting": "Изпращане...",
+                "termsText": "Потвърждавам, че тази рецепта и качените снимки са мое собствено съдържание (или имам право да ги публикувам), не нарушават авторски права на трети лица и предоставям на „Вкусни Рецепти“ право да ги показва публично на сайта. Разбирам, че рецептата ще бъде публикувана веднага и че администраторите могат да я премахнат по всяко време, ако не отговарят на правилата на общността. Приемам, че рецептите в сайта са публикувани от потребители и не са професионално проверени — отговорността при алергии, хранителна безопасност и резултат от готвенето е моя.",
+                "errors": {
+                    "tagsCount": "Моля, изберете между {{min}} и {{max}} тага за рецептата.",
+                    "termsRequired": "Моля, потвърдете условията за публикуване, преди да продължите.",
+                    "saveFailed": "Грешка при запис на рецептата.",
+                    "unsupportedFormat": "Неподдържан формат!",
+                    "fileTooLarge": "Файлът е над 10MB!"
+                }
+            },
+            "common": {
+                "cancel": "Отказ"
+            }
         }
     },
     en: {
         translation: {
+            "home": "Home",
+            "recipes": "Recipes",
+            "encyclopedia": "Encyclopedia",
+            "about": "About",
             "blog_title": "Delicious Recipes",
             "error_loading_recipes": "Error loading recipes.",
             "btn_login": "Login",
@@ -38,7 +203,164 @@ const resources = {
             "btn_delete": "🗑️ Delete",
             "btn_view_more": "View More →",
             "category_main": "Main Dishes",
-            "confirm_delete": "Are you sure you want to delete this recipe?"
+            "category_salads": "Salads",
+            "category_desserts": "Desserts",
+            "category_soups": "Soups",
+            "category_quick": "Quick & Easy",
+            "confirm_delete": "Are you sure you want to delete this recipe?",
+            "search_placeholder": "Search recipes...",
+            "back_to_all": "← Back to all recipes",
+            "category": "Category",
+            "ingredients": "Ingredients",
+            "instructions": "Instructions",
+            "edit": "Edit",
+            "delete": "Delete",
+            "error_loading_recipe": "Failed to load the recipe.",
+            "error_deleting_recipe": "Error deleting the recipe.",
+            "recipe_not_found": "Recipe not found.",
+            "btn_back_to_recipes": "← Back to all recipes",
+            "btn_edit": "Edit",
+            "category_label": "Category",
+            "ingredients_title": "Ingredients",
+            "instructions_title": "Instructions",
+            "error_allowed_formats": "Only the following formats are allowed:",
+            "error_file_size": "The file exceeds the maximum size of 10MB.",
+            "error_saving_recipe": "Error saving recipe.",
+            "btn_cancel_and_back": "← Cancel and Back",
+            "edit_recipe_title": "Edit Recipe",
+            "label_title": "Title:",
+            "label_image": "Dish Image (JPG, PNG, WEBP up to 10MB):",
+            "preview": "Preview:",
+            "ingredients_title_format": "Ingredients (one per line):",
+            "uploading_changes": "Uploading changes...",
+            "processing_image": "Processing image...",
+            "saving": "Saving...",
+            "btn_save_changes": "Save Changes",
+
+            "error_loading_my_recipes": "Failed to load your recipes.",
+            "error_deleting": "Error deleting recipe.",
+            "my_uploaded_recipes": "My Uploaded Recipes",
+            "no_uploaded_recipes": "You haven't uploaded any recipes yet.",
+
+            "error_loading_categories": "Error loading categories.",
+            "admin_categories_title": "Admin Panel — Categories",
+            "admin_column_name": "Name",
+            "admin_column_order": "Order",
+            "admin_column_recipe_count": "Recipe Count",
+
+            "footer_text": "Delicious Recipes",
+
+            "nav": {
+                "hamburgerAria": "Categories menu",
+                "recipeCategories": "Recipe categories",
+                "allRecipes": "All recipes",
+                "allFromCategory": "All from {{name}}",
+                "admin": "Admin"
+            },
+
+            "guidelines": {
+                "title": "How to write a good recipe",
+                "tip1": "Choose <strong>between 3 and 6 tags</strong> — they help readers find the recipe by occasion, diet, cooking time, and method. Too few tags make it hard to discover; too many dilute the meaning.",
+                "tip2": "Choose the most accurate <strong>category (and subcategory if available)</strong> — this is the main way the recipe appears in the site navigation.",
+                "tip3": "An image is highly recommended, but not mandatory for publishing.",
+                "tip4": "Write the steps clearly and in a logical order — readers follow them while cooking.",
+                "availableTags": "Available tags:",
+                "groups": {
+                    "time": "Time & Speed",
+                    "occasion": "Occasion",
+                    "diet": "Diet & Health",
+                    "difficulty": "Difficulty & Budget",
+                    "method": "Cooking Method"
+                }
+            },
+
+            "recipe": {
+                "addTitle": "Add New Recipe",
+                "fields": {
+                    "title": "Title:",
+                    "categoryLabel": "Category:",
+                    "selectCategory": "Select a category",
+                    "ingredients": "Ingredients:",
+                    "instructions": "Instructions:",
+                    "prepTime": "Prep Time (min):",
+                    "cookTime": "Cook Time (min):",
+                    "servings": "Servings:",
+                    "difficulty": "Difficulty:",
+                    "image": "Dish Image:"
+                },
+                "dropzoneText": "Drag image here or choose file",
+                "previewAlt": "Preview",
+                "tags": {
+                    "label": "Tags (choose between {{min}} and {{max}}):",
+                    "removeAria": "Remove {{name}}",
+                    "placeholder": "Search tag, e.g. 'quick', 'gluten-free'...",
+                    "maxReached": "You have reached the maximum of {{max}} tags.",
+                    "needMore": "Please select at least {{count}} more tag(s).",
+                    "canContinue": "You can add more tags or continue."
+                },
+                "tagsMapping": {
+                    "byrzo": "Quick (under 30 min)",
+                    "super-byrzo": "Super quick (under 15 min)",
+                    "za-vecherya": "For dinner",
+                    "za-obyad": "For lunch",
+                    "byrza-zakuska": "Quick breakfast",
+                    "podgotovka-predvaritelno": "Meal prep",
+                    "praznichno": "Festive",
+                    "semeyna-vecherya": "Family dinner",
+                    "za-parti": "Party",
+                    "sutreshno-kafe": "Morning coffee",
+                    "za-navan": "Outdoor / Picnic",
+                    "koleda": "Christmas",
+                    "velikden-tag": "Easter",
+                    "letni-recepti": "Summer recipes",
+                    "zimni-recepti": "Winter recipes",
+                    "vegetariansko": "Vegetarian",
+                    "vegan": "Vegan",
+                    "postno": "Lenten / Fasting",
+                    "keto": "Keto",
+                    "niskovaglehidratno": "Low carb",
+                    "fitness": "Fitness",
+                    "visokoproteinovo": "High protein",
+                    "bez-gluten": "Gluten-free",
+                    "bez-laktoza": "Lactose-free",
+                    "bez-zahar": "Sugar-free",
+                    "diabetno-priyatelsko": "Diabetic friendly",
+                    "lesno": "Easy",
+                    "slozhno": "Complex",
+                    "byudzhetno": "Budget-friendly",
+                    "ikonomichno": "Economical",
+                    "luksozno": "Luxury",
+                    "na-furna": "Baked",
+                    "na-skara": "Grilled",
+                    "na-tigan": "Pan-fried",
+                    "v-multikuker": "In a multi-cooker",
+                    "v-airfryer": "Air fryer",
+                    "bez-pechene": "No-bake",
+                    "bavno-gotvene": "Slow cooking"
+                },
+                "difficulty": {
+                    "easy": "Easy",
+                    "medium": "Medium",
+                    "hard": "Hard"
+                },
+                "progress": {
+                    "uploading": "Uploading...",
+                    "processing": "Processing..."
+                },
+                "submitButton": "Publish Recipe",
+                "submitting": "Submitting...",
+                "termsText": "I confirm that this recipe and the uploaded images are my own content (or I have the right to publish them), do not violate third-party copyrights, and I grant 'Delicious Recipes' the right to display them publicly on the site. I understand that the recipe will be published immediately and administrators can remove it at any time if it violates community rules. I accept that the recipes on the site are user-submitted and not professionally verified — responsibility for allergies, food safety, and cooking results is entirely mine.",
+                "errors": {
+                    "tagsCount": "Please select between {{min}} and {{max}} tags for the recipe.",
+                    "termsRequired": "Please confirm the publishing terms before proceeding.",
+                    "saveFailed": "Error saving recipe.",
+                    "unsupportedFormat": "Unsupported format!",
+                    "fileTooLarge": "File is over 10MB!"
+                }
+            },
+            "common": {
+                "cancel": "Cancel"
+            }
         }
     }
 };

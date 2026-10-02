@@ -14,6 +14,9 @@ public static class RecipeMapper
         var title = translation != null ? translation.Title : r.Title;
         var ratings = r.Ratings?.ToList() ?? new List<Rating>();
         var avg = ratings.Count == 0 ? 0 : Math.Round(ratings.Average(x => x.Value), 1);
+        var tags = (r.Tags ?? new List<Tag>())
+            .Select(t => new TagDto(t.Id, t.Name, t.Slug))
+            .ToList();
 
         return new RecipeCardDto(
             r.Id,
@@ -38,7 +41,8 @@ public static class RecipeMapper
             avg,
             ratings.Count,
             r.ViewCount,
-            r.IsFeatured
+            r.IsFeatured,
+            tags
         );
     }
 
@@ -84,7 +88,7 @@ public static class RecipeMapper
             card.AuthorId, card.AuthorName, card.PrepTimeMinutes, card.CookTimeMinutes,
             card.Servings, card.Difficulty, card.LikeCount, card.CommentCount, card.FavoriteCount,
             card.RatingAverage, card.RatingCount, card.ViewCount, card.IsFeatured,
-            liked, favorited, myRating
+            liked, favorited, myRating, card.Tags
         );
     }
 

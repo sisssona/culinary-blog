@@ -48,6 +48,13 @@ public class Recipe
     public int AuthorId { get; set; }
     public User? Author { get; set; }
 
+    // Legal consent record: when the author agreed to the content/terms
+    // policy, and which version of that policy text they agreed to.
+    public DateTime? AgreedToTermsAt { get; set; }
+
+    [MaxLength(20)]
+    public string? TermsVersion { get; set; }
+
     public ICollection<RecipeTranslation> Translations { get; set; } = new List<RecipeTranslation>();
     public ICollection<Comment> Comments { get; set; } = new List<Comment>();
     public ICollection<Like> Likes { get; set; } = new List<Like>();
@@ -58,4 +65,8 @@ public class Recipe
 
     // Added: recipe-level media (images, videos)
     public ICollection<RecipeMedia> Media { get; set; } = new List<RecipeMedia>();
+
+    // Tags: cross-cutting attributes (time, occasion, diet, difficulty, method)
+    // that don't fit the single-parent Category hierarchy.
+    public ICollection<Tag> Tags { get; set; } = new List<Tag>();
 }

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next'; // 1. Добави импорт
 import api from '../api/axios';
 
 export default function EditRecipe() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { t } = useTranslation(); // 2. Извикай хука
 
     const [title, setTitle] = useState('');
     const [category, setCategory] = useState('');
@@ -42,7 +44,7 @@ export default function EditRecipe() {
                     setPreviewUrl(getImageUrl(recipe.imageUrl));
                 }
             } catch (err) {
-                setError('Грешка при зареждане на рецептата.');
+                setError(t('error_loading_recipe') || 'Грешка при зареждане на рецептата.');
                 console.error(err);
             } finally {
                 setLoading(false);
@@ -50,7 +52,7 @@ export default function EditRecipe() {
         };
 
         fetchRecipe();
-    }, [id]);
+    }, [id, t]);
 
     useEffect(() => {
         return () => {
@@ -64,20 +66,18 @@ export default function EditRecipe() {
         const file = e.target.files[0];
         setError('');
 
-        if (!file) {
-            return;
-        }
+        if (!file) return;
 
         const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
         if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
-            setError(`Позволени са само следните формати: ${ALLOWED_EXTENSIONS.join(', ')}`);
+            setError(`${t('error_allowed_formats') || 'Позволени са само следните формати:'} ${ALLOWED_EXTENSIONS.join(', ')}`);
             e.target.value = '';
             return;
         }
 
         const maxSizeBytes = 10 * 1024 * 1024; // 10MB
         if (file.size > maxSizeBytes) {
-            setError('Файлът надвишава максималния размер от 10MB.');
+            setError(t('error_file_size') || 'Файлът надвишава максималния размер от 10MB.');
             e.target.value = '';
             return;
         }
@@ -109,21 +109,17 @@ export default function EditRecipe() {
 
         try {
             await api.put(`/recipes/${id}`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                },
+                headers: { 'Content-Type': 'multipart/form-data' },
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
-                        const percentCompleted = Math.round(
-                            (progressEvent.loaded * 100) / progressEvent.total
-                        );
+                        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                         setUploadProgress(percentCompleted);
                     }
                 }
             });
             navigate(`/recipes/${id}`);
         } catch (err) {
-            setError(err.response?.data?.message || 'Грешка при запазване на рецептата.');
+            setError(err.response?.data?.message || t('error_saving_recipe') || 'Грешка при запазване на рецептата.');
             console.error(err);
         } finally {
             setSubmitting(false);
@@ -131,16 +127,16 @@ export default function EditRecipe() {
     };
 
     if (loading) {
-        return <div style={{ textAlign: 'center', padding: '3rem' }}>Зареждане на данните...</div>;
+        return <div style={{ textAlign: 'center', padding: '3rem' }}>{t('loading') || 'Зареждане на данните...'}</div>;
     }
 
     return (
         <div style={{ maxWidth: '700px', margin: '2rem auto', padding: '0 1rem' }}>
             <Link to={`/recipes/${id}`} style={{ textDecoration: 'none', color: '#007bff', fontWeight: 'bold' }}>
-                ← Отказ и връщане
+                {t('btn_cancel_and_back') || '← Отказ и връщане'}
             </Link>
 
-            <h2 style={{ color: '#2c3e50', marginTop: '1rem' }}>✏️ Редактиране на рецепта</h2>
+            <h2 style={{ color: '#2c3e50', marginTop: '1rem' }}>✏️ {t('edit_recipe_title') || 'Редактиране на рецепта'}</h2>
 
             {error && (
                 <div style={{ padding: '0.8rem', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px', marginBottom: '1rem' }}>
@@ -150,7 +146,7 @@ export default function EditRecipe() {
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
                 <div>
-                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>Заглавие:</label>
+                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>{t('label_title') || 'Заглавие:'}</label>
                     <input
                         type="text"
                         value={title}
@@ -161,7 +157,7 @@ export default function EditRecipe() {
                 </div>
 
                 <div>
-                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>Категория:</label>
+                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>{t('category_label') || 'Категория:'}</label>
                     <input
                         type="text"
                         value={category}
@@ -172,7 +168,7 @@ export default function EditRecipe() {
 
                 <div>
                     <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>
-                        Снимка на ястието (JPG, PNG, WEBP до 10MB):
+                        {t('label_image') || 'Снимка на ястието (JPG, PNG, WEBP до 10MB):'}
                     </label>
                     <input
                         type="file"
@@ -182,7 +178,7 @@ export default function EditRecipe() {
                     />
                     {previewUrl && (
                         <div style={{ marginTop: '0.8rem', backgroundColor: '#f9f9f9', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', textAlign: 'center' }}>
-                            <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.9rem', color: '#666' }}>Преглед:</p>
+                            <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.9rem', color: '#666' }}>{t('preview') || 'Преглед:'}</p>
                             <img
                                 src={previewUrl}
                                 alt="Преглед"
@@ -194,7 +190,7 @@ export default function EditRecipe() {
 
                 <div>
                     <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>
-                        Продукти (по един на нов ред):
+                        {t('ingredients_title_format') || 'Продукти (по един на нов ред):'}
                     </label>
                     <textarea
                         rows="6"
@@ -206,7 +202,7 @@ export default function EditRecipe() {
                 </div>
 
                 <div>
-                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>Начин на приготвяне:</label>
+                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>{t('instructions_title') || 'Начин на приготвяне:'}</label>
                     <textarea
                         rows="8"
                         value={instructions}
@@ -220,7 +216,7 @@ export default function EditRecipe() {
                     <div style={{ marginBottom: '0.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                             <span style={{ fontSize: '0.85rem', color: '#555' }}>
-                                {uploadProgress < 100 ? 'Качване на промените...' : 'Обработка на изображението...'}
+                                {uploadProgress < 100 ? (t('uploading_changes') || 'Качване на промените...') : (t('processing_image') || 'Обработка на изображението...')}
                             </span>
                             <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{uploadProgress}%</span>
                         </div>
@@ -251,7 +247,7 @@ export default function EditRecipe() {
                         cursor: submitting ? 'not-allowed' : 'pointer'
                     }}
                 >
-                    {submitting ? 'Запазване...' : '💾 Запази промените'}
+                    {submitting ? (t('saving') || 'Запазване...') : (`💾 ${t('btn_save_changes') || 'Запази промените'}`)}
                 </button>
             </form>
         </div>

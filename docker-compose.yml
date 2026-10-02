@@ -1,21 +1,19 @@
-﻿version: '3.8'
-
-services:
+﻿services:
   # 1. PostgreSQL
   postgres_db:
     image: postgres:16-alpine
     container_name: culinary_postgres
     restart: always
     environment:
-      POSTGRES_DB: CulinaryBlogDb
+      POSTGRES_DB: culinary_blog_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-YourSecurePassword123!}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Sa12341234.}
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d CulinaryBlogDb"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d culinary_blog_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -54,6 +52,7 @@ services:
       - "5000:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      -  uploads_data:/usr/share/nginx/html/uploads:ro 
     depends_on:
       - web_api
 

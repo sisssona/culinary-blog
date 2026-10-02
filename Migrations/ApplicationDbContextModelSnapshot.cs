@@ -86,6 +86,9 @@ namespace CulinaryBlog.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<int?>("ParentCategoryId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -95,6 +98,8 @@ namespace CulinaryBlog.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentCategoryId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -188,6 +193,9 @@ namespace CulinaryBlog.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("AgreedToTermsAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("AuthorId")
                         .HasColumnType("integer");
 
@@ -237,6 +245,10 @@ namespace CulinaryBlog.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("TermsVersion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("ThumbnailUrl")
                         .HasColumnType("text");
@@ -404,6 +416,33 @@ namespace CulinaryBlog.Migrations
                     b.ToTable("RecipeTranslations");
                 });
 
+            modelBuilder.Entity("CulinaryBlog.Models.Tag", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Group")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Tags");
+                });
+
             modelBuilder.Entity("CulinaryBlog.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -442,6 +481,21 @@ namespace CulinaryBlog.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("RecipeTag", b =>
+                {
+                    b.Property<int>("RecipesId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TagsId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("RecipesId", "TagsId");
+
+                    b.HasIndex("TagsId");
+
+                    b.ToTable("RecipeTag");
+                });
+
             modelBuilder.Entity("CulinaryBlog.Models.Article", b =>
                 {
                     b.HasOne("CulinaryBlog.Models.User", "Author")
@@ -451,6 +505,15 @@ namespace CulinaryBlog.Migrations
                         .IsRequired();
 
                     b.Navigation("Author");
+                });
+
+            modelBuilder.Entity("CulinaryBlog.Models.Category", b =>
+                {
+                    b.HasOne("CulinaryBlog.Models.Category", "ParentCategory")
+                        .WithMany("SubCategories")
+                        .HasForeignKey("ParentCategoryId");
+
+                    b.Navigation("ParentCategory");
                 });
 
             modelBuilder.Entity("CulinaryBlog.Models.Comment", b =>
@@ -591,9 +654,26 @@ namespace CulinaryBlog.Migrations
                     b.Navigation("Recipe");
                 });
 
+            modelBuilder.Entity("RecipeTag", b =>
+                {
+                    b.HasOne("CulinaryBlog.Models.Recipe", null)
+                        .WithMany()
+                        .HasForeignKey("RecipesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CulinaryBlog.Models.Tag", null)
+                        .WithMany()
+                        .HasForeignKey("TagsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CulinaryBlog.Models.Category", b =>
                 {
                     b.Navigation("Recipes");
+
+                    b.Navigation("SubCategories");
                 });
 
             modelBuilder.Entity("CulinaryBlog.Models.Recipe", b =>

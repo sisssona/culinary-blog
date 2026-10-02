@@ -1,11 +1,14 @@
 import { Navigate, Outlet } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
 export function ProtectedRoute({ role }) {
     const { user, isAuthenticated, loading } = useAuth();
+    const { t } = useTranslation();
 
     if (loading) {
-        return <div>Зареждане...</div>;
+        // Използваме ключа "loading", който съществува в твоя i18n файл
+        return <div>{t('loading', { defaultValue: 'Зареждане на рецепти...' })}</div>;
     }
 
     if (!isAuthenticated) {

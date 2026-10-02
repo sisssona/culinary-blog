@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function ImageDropzone({ onFileSelect }) {
+    const { t } = useTranslation();
     const [previewUrl, setPreviewUrl] = useState(null);
     const dropRef = useRef(null);
 
@@ -11,12 +13,12 @@ export default function ImageDropzone({ onFileSelect }) {
         const ext = file.name.split('.').pop().toLowerCase();
 
         if (!allowed.includes(ext)) {
-            alert("Неподдържан формат!");
+            alert(t('recipe.errors.unsupportedFormat', { defaultValue: 'Неподдържан формат!' }));
             return;
         }
 
         if (file.size > 10 * 1024 * 1024) {
-            alert("Файлът е над 10MB!");
+            alert(t('recipe.errors.fileTooLarge', { defaultValue: 'Файлът е над 10MB!' }));
             return;
         }
 
@@ -41,7 +43,7 @@ export default function ImageDropzone({ onFileSelect }) {
 
     return (
         <div className="form-group">
-            <label>Снимка на ястието:</label>
+            <label>{t('recipe.fields.image', { defaultValue: 'Снимка на ястието:' })}</label>
 
             <div
                 ref={dropRef}
@@ -50,7 +52,7 @@ export default function ImageDropzone({ onFileSelect }) {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
             >
-                Плъзни снимка тук или избери файл
+                {t('recipe.dropzoneText', { defaultValue: 'Плъзни снимка тук или избери файл' })}
                 <input
                     type="file"
                     accept="image/*"
@@ -61,7 +63,7 @@ export default function ImageDropzone({ onFileSelect }) {
 
             {previewUrl && (
                 <div className="image-preview">
-                    <img src={previewUrl} alt="Preview" />
+                    <img src={previewUrl} alt={t('recipe.previewAlt', { defaultValue: 'Преглед' })} />
                 </div>
             )}
         </div>

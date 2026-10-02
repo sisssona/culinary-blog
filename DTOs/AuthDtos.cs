@@ -21,7 +21,4 @@ public record AuthResponseDto(
     string Role
 );
 
-public record UpdateProfileDto(
-    [Required][MaxLength(80)] string DisplayName,
-    [MaxLength(500)] string? Bio
-);
+

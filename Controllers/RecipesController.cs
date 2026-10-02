@@ -14,13 +14,17 @@ using System.Linq;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
-    
+using System.Threading;
+
 namespace CulinaryBlog.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
 public class RecipesController : ControllerBase
 {
+    private const int MinTags = 3;
+    private const int MaxTags = 6;
+
     private readonly ApplicationDbContext _context;
     private readonly IFileStorageService _fileStorage;
     private readonly TranslationService _translationService;
@@ -30,7 +34,7 @@ public class RecipesController : ControllerBase
         IFileStorageService fileStorage,
         TranslationService translationService)
     {
-        _context = context; 
+        _context = context;
         _fileStorage = fileStorage;
         _translationService = translationService;
     }
@@ -40,6 +44,7 @@ public class RecipesController : ControllerBase
         [FromQuery] string lang = "bg",
         [FromQuery] string? q = null,
         [FromQuery] string? category = null,
+        [FromQuery] string? tag = null,
         [FromQuery] string sort = "newest",
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 12,
@@ -52,8 +57,12 @@ public class RecipesController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            query = query.Where(r =>
-                r.CategoryEntity != null && r.CategoryEntity.Slug == category);
+            query = query.Where(r => r.CategoryEntity != null && r.CategoryEntity.Slug == category);
+        }
+
+        if (!string.IsNullOrWhiteSpace(tag))
+        {
+            query = query.Where(r => r.Tags.Any(t => t.Slug == tag));
         }
 
         if (!string.IsNullOrWhiteSpace(q))
@@ -146,6 +155,24 @@ public class RecipesController : ControllerBase
         return Ok(recipes.Select(r => RecipeMapper.ToCard(r, lang)));
     }
 
+    [HttpPost("translate-all-existing")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> TranslateAllExistingRecipes(CancellationToken cancellationToken)
+    {
+        var recipesWithoutEn = await _context.Recipes
+            .Include(r => r.Translations)
+            .Where(r => !r.Translations.Any(t => t.Language.ToLower() == "en"))
+            .ToListAsync(cancellationToken);
+
+        foreach (var recipe in recipesWithoutEn)
+        {
+            await AddEnglishTranslationAsync(recipe, cancellationToken);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return Ok(new { message = $"Успешно бяха преведени {recipesWithoutEn.Count} стари рецепти на английски език." });
+    }
+
     [HttpGet("pending")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Pending([FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
@@ -172,8 +199,9 @@ public class RecipesController : ControllerBase
 
         if (similar.Count < 4)
         {
+            var existingIds = similar.Select(s => s.Id).Append(recipe.Id).ToList();
             var extra = await BaseRecipeQuery()
-                .Where(r => r.Status == "approved" && r.Id != recipe.Id && !similar.Select(s => s.Id).Contains(r.Id))
+                .Where(r => r.Status == "approved" && !existingIds.Contains(r.Id))
                 .OrderByDescending(r => r.CreatedAt)
                 .Take(4 - similar.Count)
                 .ToListAsync(cancellationToken);
@@ -189,8 +217,15 @@ public class RecipesController : ControllerBase
         var recipe = await FindRecipeAsync(idOrSlug, cancellationToken);
         if (recipe == null) return NotFound();
 
+        if (lang.Equals("en", StringComparison.OrdinalIgnoreCase) &&
+            !recipe.Translations.Any(t => t.Language.Equals("en", StringComparison.OrdinalIgnoreCase)))
+        {
+            await AddEnglishTranslationAsync(recipe, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         TryGetUserId(out var userId);
-        var isOwnerOrAdmin = userId == recipe.AuthorId || User.IsInRole("Admin");
+        var isOwnerOrAdmin = userId != 0 && (userId == recipe.AuthorId || User.IsInRole("Admin"));
         if (recipe.Status != "approved" && !isOwnerOrAdmin)
             return NotFound();
 
@@ -210,6 +245,17 @@ public class RecipesController : ControllerBase
         if (!TryGetUserId(out var authorId))
             return Unauthorized();
 
+        if (!dto.AgreedToTerms)
+            return BadRequest(new { error = "Трябва да приемете условията за публикуване, за да качите рецепта." });
+
+        var tagIds = ParseTagIds(dto.TagsJson);
+        if (tagIds.Count < MinTags || tagIds.Count > MaxTags)
+            return BadRequest(new { error = $"Изберете между {MinTags} и {MaxTags} тага за рецептата." });
+
+        var tags = await _context.Tags.Where(t => tagIds.Contains(t.Id)).ToListAsync(cancellationToken);
+        if (tags.Count != tagIds.Count)
+            return BadRequest(new { error = "Един или повече избрани тагове не съществуват." });
+
         var isAdmin = User.IsInRole("Admin");
         var (imageUrl, thumbnailUrl) = await SaveImageAsync(dto.ImageFile, cancellationToken);
         var category = await ResolveCategoryAsync(dto, cancellationToken);
@@ -225,13 +271,18 @@ public class RecipesController : ControllerBase
             ThumbnailUrl = thumbnailUrl,
             AuthorId = authorId,
             CreatedAt = DateTime.UtcNow,
-            Status = isAdmin ? "approved" : "pending",
+            Status = "approved",
             IsFeatured = isAdmin && dto.IsFeatured,
             PrepTimeMinutes = dto.PrepTimeMinutes,
             CookTimeMinutes = dto.CookTimeMinutes,
             Servings = dto.Servings <= 0 ? 4 : dto.Servings,
-            Difficulty = string.IsNullOrWhiteSpace(dto.Difficulty) ? "medium" : dto.Difficulty
+            Difficulty = string.IsNullOrWhiteSpace(dto.Difficulty) ? "medium" : dto.Difficulty,
+            AgreedToTermsAt = DateTime.UtcNow,
+            TermsVersion = "1.0"
         };
+
+        foreach (var t in tags)
+            recipe.Tags.Add(t);
 
         ApplyStructuredContent(recipe, dto);
         recipe.Slug = SlugHelper.Unique(
@@ -240,19 +291,11 @@ public class RecipesController : ControllerBase
 
         await AddEnglishTranslationAsync(recipe, cancellationToken);
 
-        // Media handling:
-        // 1) validate files (counts, sizes)
-        // 2) save temp files and add RecipeMedia entries with State="processing"
-        // 3) _context.Recipes.Add(recipe); await _context.SaveChangesAsync();
-        // 4) enqueue background processing job with recipe.Id (fire-and-forget placeholder)
-        // 5) return CreatedAtAction(...);
-
-        // Collect additional media files from form (exclude primary image file if present)
         var formFiles = Request?.Form?.Files?.ToList() ?? new List<IFormFile>();
         var additionalFiles = formFiles.Where(f => dto.ImageFile == null || !ReferenceEquals(f, dto.ImageFile)).ToList();
 
         const int maxFiles = 10;
-        const long maxFileSizeBytes = 50L * 1024 * 1024; // 50 MB per file
+        const long maxFileSizeBytes = 50L * 1024 * 1024;
 
         if (additionalFiles.Count > maxFiles)
             return BadRequest(new { error = $"Max {maxFiles} media files are allowed." });
@@ -264,7 +307,6 @@ public class RecipesController : ControllerBase
             if (file.Length == 0 || file.Length > maxFileSizeBytes)
                 return BadRequest(new { error = $"File '{file.FileName}' is empty or exceeds size limit." });
 
-            // determine media type
             string mediaType = "image";
             if (!string.IsNullOrEmpty(file.ContentType) && file.ContentType.StartsWith("video"))
                 mediaType = "video";
@@ -273,11 +315,9 @@ public class RecipesController : ControllerBase
                 try
                 {
                     using var stream = file.OpenReadStream();
-                    if (!LooksLikeImage(stream))
+                    if (!LooksLikeImage(stream) && !file.ContentType.StartsWith("image"))
                     {
-                        // if not recognized as image and content type is not video, treat as video
-                        if (!file.ContentType.StartsWith("image"))
-                            mediaType = "video";
+                        mediaType = "video";
                     }
                 }
                 catch
@@ -286,7 +326,6 @@ public class RecipesController : ControllerBase
                 }
             }
 
-            // save to temporary storage
             var upload = await _fileStorage.SaveFileAsync(file, "temp", cancellationToken);
             var url = upload?.MainImageUrl ?? string.Empty;
             var thumb = upload?.ThumbnailUrl;
@@ -305,11 +344,9 @@ public class RecipesController : ControllerBase
             mediaEntities.Add(media);
         }
 
-        // Persist recipe to obtain Id
         _context.Recipes.Add(recipe);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Attach media entities to the saved recipe and persist
         if (mediaEntities.Count > 0)
         {
             foreach (var m in mediaEntities)
@@ -317,34 +354,6 @@ public class RecipesController : ControllerBase
             _context.Set<RecipeMedia>().AddRange(mediaEntities);
             await _context.SaveChangesAsync(cancellationToken);
         }
-
-        // Fire-and-forget background processing placeholder:
-        // In production use a proper background queue / worker (e.g., Hangfire, BackgroundService, Azure WebJobs).
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var services = HttpContext.RequestServices;
-                var scopedDb = services.GetRequiredService<ApplicationDbContext>();
-                var toProcess = await scopedDb.Set<RecipeMedia>()
-                    .Where(m => m.RecipeId == recipe.Id && m.State == "processing")
-                    .ToListAsync();
-
-                foreach (var m in toProcess)
-                {
-                    // Placeholder processing: in a real worker generate thumbnails/transcodes and update URLs.
-                    // Here we mark as ready.
-                    m.State = "ready";
-                    // Optionally set ThumbnailUrl if missing, etc.
-                }
-
-                await scopedDb.SaveChangesAsync();
-            }
-            catch
-            {
-                // swallow for now; consider logging
-            }
-        });
 
         return CreatedAtAction(nameof(GetById), new { idOrSlug = recipe.Slug }, RecipeMapper.ToDetail(recipe, "bg", authorId));
     }
@@ -363,9 +372,24 @@ public class RecipesController : ControllerBase
         {
             if (!string.IsNullOrEmpty(recipe.ImageUrl)) _fileStorage.DeleteFile(recipe.ImageUrl);
             if (!string.IsNullOrEmpty(recipe.ThumbnailUrl)) _fileStorage.DeleteFile(recipe.ThumbnailUrl);
-            var upload = await SaveImageAsync(dto.ImageFile, cancellationToken);
-            recipe.ImageUrl = upload.imageUrl;
-            recipe.ThumbnailUrl = upload.thumbnailUrl;
+            var (imageUrl, thumbnailUrl) = await SaveImageAsync(dto.ImageFile, cancellationToken);
+            recipe.ImageUrl = imageUrl;
+            recipe.ThumbnailUrl = thumbnailUrl;
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.TagsJson))
+        {
+            var tagIds = ParseTagIds(dto.TagsJson);
+            if (tagIds.Count < MinTags || tagIds.Count > MaxTags)
+                return BadRequest(new { error = $"Изберете между {MinTags} и {MaxTags} тага за рецептата." });
+
+            var tags = await _context.Tags.Where(t => tagIds.Contains(t.Id)).ToListAsync(cancellationToken);
+            if (tags.Count != tagIds.Count)
+                return BadRequest(new { error = "Един или повече избрани тагове не съществуват." });
+
+            recipe.Tags.Clear();
+            foreach (var t in tags)
+                recipe.Tags.Add(t);
         }
 
         var category = await ResolveCategoryAsync(dto, cancellationToken);
@@ -378,12 +402,14 @@ public class RecipesController : ControllerBase
         recipe.CookTimeMinutes = dto.CookTimeMinutes;
         recipe.Servings = dto.Servings <= 0 ? recipe.Servings : dto.Servings;
         recipe.Difficulty = string.IsNullOrWhiteSpace(dto.Difficulty) ? recipe.Difficulty : dto.Difficulty;
+
         if (User.IsInRole("Admin"))
             recipe.IsFeatured = dto.IsFeatured;
 
         ApplyStructuredContent(recipe, dto, replace: true);
         await AddEnglishTranslationAsync(recipe, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+
         return Ok(RecipeMapper.ToDetail(recipe, "bg", recipe.AuthorId));
     }
 
@@ -437,7 +463,8 @@ public class RecipesController : ControllerBase
             .Include(r => r.Ratings)
             .Include(r => r.IngredientItems)
             .Include(r => r.Steps)
-            .Include(r => r.Media);
+            .Include(r => r.Media)
+            .Include(r => r.Tags);
 
     private async Task<Recipe?> FindRecipeAsync(string idOrSlug, CancellationToken cancellationToken)
     {
@@ -449,6 +476,7 @@ public class RecipesController : ControllerBase
 
     private bool TryGetUserId(out int userId)
     {
+        userId = 0;
         var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return int.TryParse(claim, out userId);
     }
@@ -464,7 +492,7 @@ public class RecipesController : ControllerBase
         if (file == null || file.Length == 0)
             return (null, null);
         var upload = await _fileStorage.SaveFileAsync(file, "uploads", cancellationToken);
-        return (upload.MainImageUrl, upload.ThumbnailUrl);
+        return (upload?.MainImageUrl, upload?.ThumbnailUrl);
     }
 
     private async Task<Category> ResolveCategoryAsync(CreateRecipeDto dto, CancellationToken cancellationToken)
@@ -481,7 +509,6 @@ public class RecipesController : ControllerBase
         return category;
     }
 
-    // overload for update DTO
     private async Task<Category> ResolveCategoryAsync(RecipeUpdateDto dto, CancellationToken cancellationToken)
     {
         Category? category = null;
@@ -496,15 +523,28 @@ public class RecipesController : ControllerBase
         return category;
     }
 
+    private static List<int> ParseTagIds(string? tagsJson)
+    {
+        if (string.IsNullOrWhiteSpace(tagsJson))
+            return new List<int>();
+        try
+        {
+            return JsonSerializer.Deserialize<List<int>>(tagsJson) ?? new List<int>();
+        }
+        catch
+        {
+            return new List<int>();
+        }
+    }
+
     private static void ApplyStructuredContent(Recipe recipe, CreateRecipeDto dto, bool replace = false)
     {
-        var ingredientLines = ParseIngredients(dto);
-        var stepLines = ParseSteps(dto);
+        var ingredientLines = ParseIngredients(dto.IngredientsJson);
+        var stepLines = ParseSteps(dto.StepsJson);
 
         if (ingredientLines.Count > 0)
         {
-            if (replace)
-                recipe.IngredientItems.Clear();
+            if (replace) recipe.IngredientItems.Clear();
             foreach (var item in ingredientLines)
                 recipe.IngredientItems.Add(item);
             recipe.Ingredients = string.Join('\n', ingredientLines.Select(i =>
@@ -512,8 +552,7 @@ public class RecipesController : ControllerBase
         }
         else if (!string.IsNullOrWhiteSpace(dto.Ingredients))
         {
-            if (replace)
-                recipe.IngredientItems.Clear();
+            if (replace) recipe.IngredientItems.Clear();
             var lines = RecipeMapper.SplitLines(dto.Ingredients);
             for (var i = 0; i < lines.Count; i++)
             {
@@ -529,16 +568,14 @@ public class RecipesController : ControllerBase
 
         if (stepLines.Count > 0)
         {
-            if (replace)
-                recipe.Steps.Clear();
+            if (replace) recipe.Steps.Clear();
             foreach (var step in stepLines)
                 recipe.Steps.Add(step);
             recipe.Instructions = string.Join('\n', stepLines.Select(s => s.Text));
         }
         else if (!string.IsNullOrWhiteSpace(dto.Instructions))
         {
-            if (replace)
-                recipe.Steps.Clear();
+            if (replace) recipe.Steps.Clear();
             var lines = RecipeMapper.SplitLines(dto.Instructions);
             for (var i = 0; i < lines.Count; i++)
             {
@@ -547,13 +584,61 @@ public class RecipesController : ControllerBase
         }
     }
 
-    private static List<RecipeIngredient> ParseIngredients(CreateRecipeDto dto)
+    // Overload for RecipeUpdateDto
+    private static void ApplyStructuredContent(Recipe recipe, RecipeUpdateDto dto, bool replace = false)
     {
-        if (string.IsNullOrWhiteSpace(dto.IngredientsJson))
+        var ingredientLines = ParseIngredients(dto.IngredientsJson);
+        var stepLines = ParseSteps(dto.StepsJson);
+
+        if (ingredientLines.Count > 0)
+        {
+            if (replace) recipe.IngredientItems.Clear();
+            foreach (var item in ingredientLines)
+                recipe.IngredientItems.Add(item);
+            recipe.Ingredients = string.Join('\n', ingredientLines.Select(i =>
+                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"));
+        }
+        else if (!string.IsNullOrWhiteSpace(dto.Ingredients))
+        {
+            if (replace) recipe.IngredientItems.Clear();
+            var lines = RecipeMapper.SplitLines(dto.Ingredients);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var parsed = RecipeMapper.ParseIngredient(lines[i]);
+                recipe.IngredientItems.Add(new RecipeIngredient
+                {
+                    SortOrder = i,
+                    Amount = parsed.Amount,
+                    Name = parsed.Name
+                });
+            }
+        }
+
+        if (stepLines.Count > 0)
+        {
+            if (replace) recipe.Steps.Clear();
+            foreach (var step in stepLines)
+                recipe.Steps.Add(step);
+            recipe.Instructions = string.Join('\n', stepLines.Select(s => s.Text));
+        }
+        else if (!string.IsNullOrWhiteSpace(dto.Instructions))
+        {
+            if (replace) recipe.Steps.Clear();
+            var lines = RecipeMapper.SplitLines(dto.Instructions);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                recipe.Steps.Add(new RecipeStep { SortOrder = i + 1, Text = lines[i] });
+            }
+        }
+    }
+
+    private static List<RecipeIngredient> ParseIngredients(string? ingredientsJson)
+    {
+        if (string.IsNullOrWhiteSpace(ingredientsJson))
             return new List<RecipeIngredient>();
         try
         {
-            var items = JsonSerializer.Deserialize<List<IngredientLineDto>>(dto.IngredientsJson, new JsonSerializerOptions
+            var items = JsonSerializer.Deserialize<List<IngredientLineDto>>(ingredientsJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             }) ?? new List<IngredientLineDto>();
@@ -570,20 +655,21 @@ public class RecipesController : ControllerBase
         }
     }
 
-    private static List<RecipeStep> ParseSteps(CreateRecipeDto dto)
+    private static List<RecipeStep> ParseSteps(string? stepsJson)
     {
-        if (string.IsNullOrWhiteSpace(dto.StepsJson))
+        if (string.IsNullOrWhiteSpace(stepsJson))
             return new List<RecipeStep>();
         try
         {
-            var items = JsonSerializer.Deserialize<List<StepLineDto>>(dto.StepsJson, new JsonSerializerOptions
+            var items = JsonSerializer.Deserialize<List<StepLineDto>>(stepsJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             }) ?? new List<StepLineDto>();
+
             return items.Select((item, i) => new RecipeStep
             {
                 SortOrder = item.SortOrder == 0 ? i + 1 : item.SortOrder,
-                Text = item.Text
+                Text = item.Text ?? string.Empty
             }).Where(s => !string.IsNullOrWhiteSpace(s.Text)).ToList();
         }
         catch
@@ -617,7 +703,6 @@ public class RecipesController : ControllerBase
         }
     }
 
-    // helper - check first bytes for common image signatures
     public static bool LooksLikeImage(Stream s)
     {
         if (s == null || !s.CanRead)
@@ -635,11 +720,8 @@ public class RecipesController : ControllerBase
             var header = new byte[12];
             var read = s.Read(header, 0, header.Length);
 
-            // JPEG: FF D8
             if (read >= 2 && header[0] == 0xFF && header[1] == 0xD8) return true;
-            // PNG: 89 50 4E
             if (read >= 3 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E) return true;
-            // WEBP: "RIFF" ... "WEBP"
             if (read >= 12 && header[0] == (byte)'R' && header[1] == (byte)'I' && header[8] == (byte)'W' && header[9] == (byte)'E')
                 return true;
 

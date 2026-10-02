@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
-export default function AuthButtons() {
+export default function AuthButtons({ onLoginOpen }) {
     const { token, logout } = useAuth();
     const { t } = useTranslation();
     const isLogged = !!token;
@@ -24,7 +24,7 @@ export default function AuthButtons() {
                     </button>
                 </>
             ) : (
-                <button className="btn blue" id="open-login">
+                <button onClick={onLoginOpen} className="btn blue">
                     {t('btn_login')}
                 </button>
             )}

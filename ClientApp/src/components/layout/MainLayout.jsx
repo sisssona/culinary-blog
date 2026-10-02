@@ -3,6 +3,7 @@ import Header from './Header';
 import Navigation from './Navigation';
 import Footer from './Footer';
 import SearchBar from './SearchBar';
+import RecipeListPage from '../../pages/RecipeListPage';
 
 import HomePage from '../../pages/HomePage';
 import AddRecipePage from '../../pages/AddRecipePage';
@@ -32,7 +33,7 @@ export default function MainLayout() {
             <main>
                 <Routes>
                     <Route path="/" element={<HomePage />} />
-                    <Route path="/recipes" element={<HomePage />} />
+                    <Route path="/recipes" element={<RecipeListPage />} />
                     <Route path="/recipes/:id" element={<RecipeDetails />} />
 
                     <Route element={<ProtectedRoute />}>

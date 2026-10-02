@@ -18,6 +18,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
     public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
     public DbSet<Article> Articles => Set<Article>();
+    public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<RecipeMedia> RecipeMedia => Set<RecipeMedia>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
