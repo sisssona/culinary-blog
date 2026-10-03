@@ -631,6 +631,201 @@ p {
     color: var(--text-h);
 }
 
+/* ===== Преструктурирана форма "Добави рецепта" ===== */
+.form-container-single {
+    max-width: 760px;
+}
+
+.form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.form-section {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    background: var(--bg);
+}
+
+.form-section-title {
+    margin: 0 0 14px;
+    font-size: 17px;
+    color: var(--text-h);
+}
+
+.field-hint {
+    font-size: 13px;
+    color: var(--text);
+    margin: -2px 0 6px;
+}
+
+.form-grid-details {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+}
+
+.btn-submit-full {
+    width: 100%;
+    margin-top: 0;
+}
+
+/* ===== Структуриран инпут за продукти ===== */
+.ingredient-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ingredient-row {
+    display: grid;
+    grid-template-columns: 2fr 90px 100px 36px;
+    gap: 8px;
+    align-items: center;
+}
+
+.ingredient-remove {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text);
+    height: 38px;
+}
+
+    .ingredient-remove:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+.ingredient-add {
+    margin-top: 10px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-weight: 500;
+    align-self: flex-start;
+}
+
+    .ingredient-add:hover {
+        background: var(--accent-border);
+        color: white;
+    }
+
+@media (max-width: 600px) {
+    .ingredient-row {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "name name"
+            "amount unit"
+            "remove remove";
+    }
+
+    .ingredient-name {
+        grid-area: name;
+    }
+
+    .ingredient-amount {
+        grid-area: amount;
+    }
+
+    .ingredient-unit {
+        grid-area: unit;
+    }
+
+    .ingredient-remove {
+        grid-area: remove;
+    }
+}
+
+/* ===== Click-to-toggle tag picker (сгъваем) ===== */
+.tag-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag-panel-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+}
+
+    .tag-panel-toggle:hover {
+        background: var(--social-bg);
+    }
+
+.tag-group-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-h);
+    padding: 4px 0;
+    margin-bottom: 4px;
+}
+
+.tag-explainer {
+    font-size: 13px;
+    color: var(--text);
+    margin: 4px 0 12px;
+    line-height: 1.5;
+}
+
+.tag-group {
+    margin-bottom: 14px;
+}
+
+.tag-group-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-h);
+    margin: 0 0 6px;
+}
+
+.tag-picker-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tag-pick-chip {
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--code-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    cursor: pointer;
+}
+
+    .tag-pick-chip:hover:not(:disabled) {
+        background: var(--social-bg);
+    }
+
+.tag-pick-chip-selected {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.tag-pick-chip:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .dropzone {
     border: 2px dashed var(--accent-border);
     padding: 15px;

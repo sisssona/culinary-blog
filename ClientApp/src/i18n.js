@@ -56,7 +56,7 @@ const resources = {
             "processing_image": "Обработка на изображението...",
             "saving": "Запазване...",
             "btn_save_changes": "Запази промените",
-       
+
             "error_loading_my_recipes": "Не успяхме да заредим вашите рецепти.",
             "error_deleting": "Грешка при изтриване.",
             "my_uploaded_recipes": "Моите качени рецепти",
@@ -96,27 +96,62 @@ const resources = {
 
             "recipe": {
                 "addTitle": "Добавяне на нова рецепта",
+                "sections": {
+                    "photo": "Снимка",
+                    "basicInfo": "Основна информация",
+                    "ingredientsSection": "Продукти",
+                    "instructionsSection": "Начин на приготвяне",
+                    "details": "Детайли на рецептата",
+                    "tagsSection": "Тагове",
+                    "terms": "Условия за публикуване"
+                },
                 "fields": {
                     "title": "Заглавие:",
                     "categoryLabel": "Категория:",
                     "selectCategory": "Изберете категория",
+                    "subcategoryLabel": "Подкатегория:",
+                    "selectSubcategory": "Изберете подкатегория",
                     "ingredients": "Продукти:",
                     "instructions": "Начин на приготвяне:",
+                    "instructionsHint": "Пишете всяка стъпка на отделен ред — ще се номерират автоматично.",
                     "prepTime": "Време за подготовка (мин):",
                     "cookTime": "Време за готвене (мин):",
                     "servings": "Порции:",
                     "difficulty": "Трудност:",
-                    "image": "Снимка на ястието:"
+                    "image": "Снимка на ястието:",
+                    "ingredientNamePlaceholder": "напр. брашно",
+                    "ingredientAmountPlaceholder": "кол-во"
+                },
+                "units": {
+                    "бр.": "бр.",
+                    "г": "г",
+                    "кг": "кг",
+                    "мл": "мл",
+                    "л": "л",
+                    "ч.л.": "ч.л.",
+                    "с.л.": "с.л.",
+                    "ч.ч.": "ч.ч.",
+                    "щипка": "щипка",
+                    "връзка": "връзка"
+                },
+                "ingredientsActions": {
+                    "addRow": "+ Добави продукт",
+                    "removeRow": "Премахни продукт",
+                    "atLeastOne": "Добавете поне един продукт."
                 },
                 "dropzoneText": "Плъзни снимка тук или избери файл",
                 "previewAlt": "Преглед",
                 "tags": {
-                    "label": "Тагове (изберете между {{min}} и {{max}}):",
+                    "label": "Тагове — кликнете, за да изберете между {{min}} и {{max}}",
+                    "selectedCount": "избрани: {{count}}",
                     "removeAria": "Премахни {{name}}",
                     "placeholder": "Търсете таг, напр. 'бързо', 'без глутен'...",
                     "maxReached": "Достигнахте максимума от {{max}} тага.",
                     "needMore": "Изберете поне още {{count}} таг(а).",
-                    "canContinue": "Може да добавите още тагове или да продължите."
+                    "canContinue": "Може да изберете още тагове или да продължите.",
+                    "explainer": "Таговете помагат на читателите да намерят рецептата по повод, диета, скорост на приготвяне и т.н. — независимо в коя категория е. Категорията вече показва какво е ястието, затова тук няма нужда да повтаряте това.",
+                    "showAll": "Покажи всички тагове",
+                    "hideAll": "Скрий таговете"
                 },
                 "tagsMapping": {
                     "byrzo": "Бързо (до 30 мин)",
@@ -134,6 +169,7 @@ const resources = {
                     "velikden-tag": "Великден",
                     "letni-recepti": "Летни рецепти",
                     "zimni-recepti": "Зимни рецепти",
+                    "za-detsa": "За деца",
                     "vegetariansko": "Вегетарианско",
                     "vegan": "Веган",
                     "postno": "Постно",
@@ -276,27 +312,62 @@ const resources = {
 
             "recipe": {
                 "addTitle": "Add New Recipe",
+                "sections": {
+                    "photo": "Photo",
+                    "basicInfo": "Basic Information",
+                    "ingredientsSection": "Ingredients",
+                    "instructionsSection": "Instructions",
+                    "details": "Recipe Details",
+                    "tagsSection": "Tags",
+                    "terms": "Publishing terms"
+                },
                 "fields": {
                     "title": "Title:",
                     "categoryLabel": "Category:",
                     "selectCategory": "Select a category",
+                    "subcategoryLabel": "Subcategory:",
+                    "selectSubcategory": "Select a subcategory",
                     "ingredients": "Ingredients:",
                     "instructions": "Instructions:",
+                    "instructionsHint": "Write each step on its own line — they'll be numbered automatically.",
                     "prepTime": "Prep Time (min):",
                     "cookTime": "Cook Time (min):",
                     "servings": "Servings:",
                     "difficulty": "Difficulty:",
-                    "image": "Dish Image:"
+                    "image": "Dish Image:",
+                    "ingredientNamePlaceholder": "e.g. flour",
+                    "ingredientAmountPlaceholder": "amount"
+                },
+                "units": {
+                    "бр.": "pcs",
+                    "г": "g",
+                    "кг": "kg",
+                    "мл": "ml",
+                    "л": "l",
+                    "ч.л.": "tsp",
+                    "с.л.": "tbsp",
+                    "ч.ч.": "cup",
+                    "щипка": "pinch",
+                    "връзка": "bunch"
+                },
+                "ingredientsActions": {
+                    "addRow": "+ Add ingredient",
+                    "removeRow": "Remove ingredient",
+                    "atLeastOne": "Add at least one ingredient."
                 },
                 "dropzoneText": "Drag image here or choose file",
                 "previewAlt": "Preview",
                 "tags": {
-                    "label": "Tags (choose between {{min}} and {{max}}):",
+                    "label": "Tags — click to choose between {{min}} and {{max}}",
+                    "selectedCount": "selected: {{count}}",
                     "removeAria": "Remove {{name}}",
                     "placeholder": "Search tag, e.g. 'quick', 'gluten-free'...",
                     "maxReached": "You have reached the maximum of {{max}} tags.",
                     "needMore": "Please select at least {{count}} more tag(s).",
-                    "canContinue": "You can add more tags or continue."
+                    "canContinue": "You can select more tags or continue.",
+                    "explainer": "Tags help readers find the recipe by occasion, diet, cooking speed, etc. — regardless of which category it's in. The category already shows what the dish is, so there's no need to repeat that here.",
+                    "showAll": "Show all tags",
+                    "hideAll": "Hide tags"
                 },
                 "tagsMapping": {
                     "byrzo": "Quick (under 30 min)",
@@ -314,6 +385,7 @@ const resources = {
                     "velikden-tag": "Easter",
                     "letni-recepti": "Summer recipes",
                     "zimni-recepti": "Winter recipes",
+                    "za-detsa": "Kid-friendly",
                     "vegetariansko": "Vegetarian",
                     "vegan": "Vegan",
                     "postno": "Lenten / Fasting",

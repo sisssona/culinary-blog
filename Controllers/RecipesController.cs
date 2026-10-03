@@ -265,7 +265,10 @@ public class RecipesController : ControllerBase
             Title = dto.Title,
             Category = category.Name,
             CategoryId = category.Id,
-            Ingredients = dto.Ingredients,
+            Ingredients = dto.Ingredients?.Count > 0 
+                ? string.Join('\n', dto.Ingredients.Select(i => 
+                    string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"))
+                : string.Empty,
             Instructions = dto.Instructions,
             ImageUrl = imageUrl,
             ThumbnailUrl = thumbnailUrl,
@@ -396,7 +399,10 @@ public class RecipesController : ControllerBase
         recipe.Title = dto.Title;
         recipe.Category = category.Name;
         recipe.CategoryId = category.Id;
-        recipe.Ingredients = dto.Ingredients;
+        recipe.Ingredients = dto.Ingredients?.Count > 0
+            ? string.Join('\n', dto.Ingredients.Select(i =>
+                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"))
+            : string.Empty;
         recipe.Instructions = dto.Instructions;
         recipe.PrepTimeMinutes = dto.PrepTimeMinutes;
         recipe.CookTimeMinutes = dto.CookTimeMinutes;
@@ -550,10 +556,11 @@ public class RecipesController : ControllerBase
             recipe.Ingredients = string.Join('\n', ingredientLines.Select(i =>
                 string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"));
         }
-        else if (!string.IsNullOrWhiteSpace(dto.Ingredients))
+        else if (dto.Ingredients?.Count > 0)
         {
             if (replace) recipe.IngredientItems.Clear();
-            var lines = RecipeMapper.SplitLines(dto.Ingredients);
+            var lines = RecipeMapper.SplitLines(string.Join('\n', dto.Ingredients.Select(i =>
+                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}")));
             for (var i = 0; i < lines.Count; i++)
             {
                 var parsed = RecipeMapper.ParseIngredient(lines[i]);
@@ -564,6 +571,7 @@ public class RecipesController : ControllerBase
                     Name = parsed.Name
                 });
             }
+            recipe.Ingredients = string.Join('\n', lines);
         }
 
         if (stepLines.Count > 0)
@@ -598,10 +606,11 @@ public class RecipesController : ControllerBase
             recipe.Ingredients = string.Join('\n', ingredientLines.Select(i =>
                 string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"));
         }
-        else if (!string.IsNullOrWhiteSpace(dto.Ingredients))
+        else if (dto.Ingredients?.Count > 0)
         {
             if (replace) recipe.IngredientItems.Clear();
-            var lines = RecipeMapper.SplitLines(dto.Ingredients);
+            var lines = RecipeMapper.SplitLines(string.Join('\n', dto.Ingredients.Select(i =>
+                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}")));
             for (var i = 0; i < lines.Count; i++)
             {
                 var parsed = RecipeMapper.ParseIngredient(lines[i]);
@@ -612,6 +621,7 @@ public class RecipesController : ControllerBase
                     Name = parsed.Name
                 });
             }
+            recipe.Ingredients = string.Join('\n', lines);
         }
 
         if (stepLines.Count > 0)

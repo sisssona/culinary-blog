@@ -1,21 +1,16 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getTags } from '../api/recipeService';
 
 const MIN_TAGS = 3;
 const MAX_TAGS = 6;
-
-const GROUP_LABELS = {
-    time: 'Време и бързина',
-    occasion: 'Повод',
-    diet: 'Диета и здраве',
-    difficulty: 'Трудност и бюджет',
-    method: 'Начин на приготвяне'
-};
-
 const GROUP_ORDER = ['time', 'occasion', 'diet', 'difficulty', 'method'];
 
 export default function TagInput({ selectedTags, onChange }) {
+    const { t } = useTranslation();
     const [tagsByGroup, setTagsByGroup] = useState({});
+    const [openGroups, setOpenGroups] = useState({});
+    const [panelOpen, setPanelOpen] = useState(true);
 
     useEffect(() => {
         getTags()
@@ -31,17 +26,24 @@ export default function TagInput({ selectedTags, onChange }) {
             .catch(() => setTagsByGroup({}));
     }, []);
 
-    const isSelected = (tagId) => selectedTags.some((t) => t.id === tagId);
+    const tagLabel = (tag) => t(`recipe.tagsMapping.${tag.slug}`, tag.name);
+    const groupLabel = (group) => t(`guidelines.groups.${group}`, group);
+
+    const isSelected = (tagId) => selectedTags.some((tg) => tg.id === tagId);
     const atLimit = selectedTags.length >= MAX_TAGS;
     const belowMin = selectedTags.length < MIN_TAGS;
 
     const toggleTag = (tag) => {
         if (isSelected(tag.id)) {
-            onChange(selectedTags.filter((t) => t.id !== tag.id));
+            onChange(selectedTags.filter((tg) => tg.id !== tag.id));
         } else {
             if (atLimit) return;
             onChange([...selectedTags, tag]);
         }
+    };
+
+    const toggleGroup = (group) => {
+        setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }));
     };
 
     const groupKeys = [
@@ -51,46 +53,85 @@ export default function TagInput({ selectedTags, onChange }) {
 
     return (
         <div className="form-group tag-input">
-            <label>
-                Тагове — кликнете, за да изберете между {MIN_TAGS} и {MAX_TAGS}
-                {' '}(избрани: {selectedTags.length}):
-            </label>
+            <div className="tag-panel-header">
+                <label>
+                    {t('recipe.tags.label', { min: MIN_TAGS, max: MAX_TAGS })}
+                    {' '}({t('recipe.tags.selectedCount', { count: selectedTags.length })})
+                </label>
+                <button
+                    type="button"
+                    className="tag-panel-toggle"
+                    onClick={() => setPanelOpen((p) => !p)}
+                >
+                    {panelOpen ? t('recipe.tags.hideAll') : t('recipe.tags.showAll')}
+                </button>
+            </div>
 
-            <p className="tag-explainer">
-                Таговете помагат на читателите да намерят рецептата по повод, диета, скорост на
-                приготвяне и т.н. — независимо в коя категория е. Категорията вече показва <em>какво</em> е
-                ястието (салата, основно, десерт...), затова тук няма нужда да повтаряте това.
-            </p>
+            {selectedTags.length > 0 && (
+                <div className="tag-chips-selected">
+                    {selectedTags.map((tag) => (
+                        <span key={tag.id} className="tag-chip tag-chip-removable">
+                            #{tagLabel(tag)}
+                            <button
+                                type="button"
+                                onClick={() => toggleTag(tag)}
+                                aria-label={t('recipe.tags.removeAria', { name: tagLabel(tag) })}
+                            >
+                                ✕
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
 
-            {groupKeys.map((group) => (
-                <div key={group} className="tag-group">
-                    <p className="tag-group-label">{GROUP_LABELS[group] || group}</p>
-                    <div className="tag-picker-list">
-                        {tagsByGroup[group].map((tag) => {
-                            const selected = isSelected(tag.id);
-                            const disabled = !selected && atLimit;
-                            return (
+            {panelOpen && (
+                <>
+                    <p className="tag-explainer">{t('recipe.tags.explainer')}</p>
+
+                    {groupKeys.map((group) => {
+                        const isOpen = !!openGroups[group];
+                        return (
+                            <div key={group} className="tag-group">
                                 <button
                                     type="button"
-                                    key={tag.id}
-                                    onClick={() => toggleTag(tag)}
-                                    disabled={disabled}
-                                    className={`tag-pick-chip${selected ? ' tag-pick-chip-selected' : ''}`}
+                                    className="tag-group-toggle"
+                                    onClick={() => toggleGroup(group)}
+                                    aria-expanded={isOpen}
                                 >
-                                    #{tag.name}
+                                    {isOpen ? '▾' : '▸'} {groupLabel(group)}
                                 </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            ))}
+
+                                {isOpen && (
+                                    <div className="tag-picker-list">
+                                        {tagsByGroup[group].map((tag) => {
+                                            const selected = isSelected(tag.id);
+                                            const disabled = !selected && atLimit;
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={tag.id}
+                                                    onClick={() => toggleTag(tag)}
+                                                    disabled={disabled}
+                                                    className={`tag-pick-chip${selected ? ' tag-pick-chip-selected' : ''}`}
+                                                >
+                                                    #{tagLabel(tag)}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </>
+            )}
 
             <p className={`tag-hint ${belowMin ? 'tag-hint-warning' : ''}`}>
                 {atLimit
-                    ? `Достигнахте максимума от ${MAX_TAGS} тага.`
+                    ? t('recipe.tags.maxReached', { max: MAX_TAGS })
                     : belowMin
-                        ? `Изберете поне още ${MIN_TAGS - selectedTags.length} таг(а).`
-                        : 'Може да изберете още тагове или да продължите.'}
+                        ? t('recipe.tags.needMore', { count: MIN_TAGS - selectedTags.length })
+                        : t('recipe.tags.canContinue')}
             </p>
         </div>
     );

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getCategories } from '../api/recipeService';
 
 export default function CategorySelect({ value, onChange }) {
-    const { i18n } = useTranslation();
+    const { t, i18n } = useTranslation();
     const lang = i18n.language || 'bg';
 
     const [categories, setCategories] = useState([]);
@@ -22,9 +22,6 @@ export default function CategorySelect({ value, onChange }) {
 
     const handleParentChange = (newParentId) => {
         setParentId(newParentId);
-        // By default, selecting a parent with no subcategories sets the final
-        // CategoryId directly. If it has subcategories, wait for the second
-        // dropdown instead of submitting the parent id right away.
         const parent = categories.find((c) => String(c.id) === String(newParentId));
         const stillHasChildren = parent?.subCategories && parent.subCategories.length > 0;
         onChange(stillHasChildren ? '' : newParentId);
@@ -32,14 +29,14 @@ export default function CategorySelect({ value, onChange }) {
 
     return (
         <div className="form-group">
-            <label>Категория:</label>
+            <label>{t('recipe.fields.categoryLabel')}</label>
             <select
                 className="form-input"
                 value={parentId}
                 onChange={(e) => handleParentChange(e.target.value)}
                 required
             >
-                <option value="">Изберете категория</option>
+                <option value="">{t('recipe.fields.selectCategory')}</option>
                 {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                         {label(cat)}
@@ -49,14 +46,14 @@ export default function CategorySelect({ value, onChange }) {
 
             {hasSubCategories && (
                 <>
-                    <label style={{ marginTop: '8px' }}>Подкатегория:</label>
+                    <label style={{ marginTop: '8px' }}>{t('recipe.fields.subcategoryLabel')}</label>
                     <select
                         className="form-input"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
                         required
                     >
-                        <option value="">Изберете подкатегория</option>
+                        <option value="">{t('recipe.fields.selectSubcategory')}</option>
                         {selectedParent.subCategories.map((sub) => (
                             <option key={sub.id} value={sub.id}>
                                 {label(sub)}
