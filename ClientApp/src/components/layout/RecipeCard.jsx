@@ -2,7 +2,9 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 export default function RecipeCard({ recipe }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const lang = i18n.language || 'bg';
+    const tagLabel = (tag) => (lang === 'bg' ? tag.name : (tag.nameEn || tag.name));
 
     return (
         <div className="recipe-card">
@@ -18,12 +20,15 @@ export default function RecipeCard({ recipe }) {
                 <h3 className="recipe-title">{recipe.title}</h3>
 
                 <p className="recipe-category">
-                    📂 {recipe.category || t('no_category') || 'Без категория'}
+                    📂 {recipe.category || 'Без категория'}
                 </p>
 
-                <p className="recipe-description">
-                    {recipe.description?.slice(0, 100) || t('no_description') || 'Няма описание.'}{recipe.description?.length > 100 ? '...' : ''}
-                </p>
+                {recipe.description && (
+                    <p className="recipe-description">
+                        {recipe.description.slice(0, 100)}
+                        {recipe.description.length > 100 ? '...' : ''}
+                    </p>
+                )}
 
                 {recipe.tags && recipe.tags.length > 0 && (
                     <div className="recipe-tags">
@@ -34,7 +39,7 @@ export default function RecipeCard({ recipe }) {
                                 className="tag-chip"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                #{tag.name}
+                                #{tagLabel(tag)}
                             </Link>
                         ))}
                     </div>

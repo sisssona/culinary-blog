@@ -12,12 +12,10 @@ public class CreateRecipeDto
     public string Category { get; set; } = string.Empty;
     public int? CategoryId { get; set; }
 
+    public string Ingredients { get; set; } = string.Empty;
     public string Instructions { get; set; } = string.Empty;
     public string? IngredientsJson { get; set; }
     public string? StepsJson { get; set; }
-
-    // ТУК Е МЯСТОТО ДА ДОБАВИШ НОВИЯ РЕД:
-    public List<RecipeIngredientInputModel> Ingredients { get; set; } = new();
 
     // JSON array of selected tag IDs, e.g. "[3,7,12]" — sent as a string
     // because the request is multipart/form-data, same pattern as IngredientsJson/StepsJson.
@@ -42,16 +40,9 @@ public class RecipeUpdateDto : CreateRecipeDto
 {
 }
 
-// Помощен входен модел (уверете се, че съществува в проектите ви, ако липсва - създайте го)
-public class RecipeIngredientInputModel
-{
-    public string Amount { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-}
-
 public record IngredientLineDto(string Amount, string Name);
 public record StepLineDto(int SortOrder, string Text, string? ImageUrl);
-public record TagDto(int Id, string Name, string Slug);
+public record TagDto(int Id, string Name, string NameEn, string Slug);
 
 public record RecipeCardDto(
     int Id,

@@ -14,7 +14,8 @@ const mapAuth = (data, fallbackEmail) => {
         id: data.userId || data.UserId,
         email: data.email || data.Email || fallbackEmail,
         displayName: data.displayName || data.DisplayName || fallbackEmail,
-        role: data.role || data.Role || 'User'
+        role: data.role || data.Role || 'User',
+        emailConfirmed: data.emailConfirmed ?? data.EmailConfirmed ?? false
     };
     return { token, user };
 };
@@ -78,6 +79,15 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
+    const markEmailConfirmed = () => {
+        setUser((prev) => {
+            if (!prev) return prev;
+            const next = { ...prev, emailConfirmed: true };
+            localStorage.setItem('user', JSON.stringify(next));
+            return next;
+        });
+    };
+
     const value = {
         user,
         token,
@@ -86,7 +96,8 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         register,
-        logout
+        logout,
+        markEmailConfirmed
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,6 @@
 using CulinaryBlog.Data;
 using CulinaryBlog.Models;
+using CulinaryBlog.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -61,6 +62,16 @@ public class RecipeInteractionsController : ControllerBase
 
         _context.Comments.Add(comment);
         await _context.SaveChangesAsync();
+
+        // ✅ Audit log
+        var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+        await auditService.LogActionAsync(
+            userId,
+            "AddComment",
+            "Comment",
+            comment.Id,
+            $"Коментар към рецепта {recipeId}"
+        );
 
         var user = await _context.Users.FindAsync(userId);
         return Ok(new

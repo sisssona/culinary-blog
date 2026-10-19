@@ -97,6 +97,7 @@ builder.Services.AddEndpointsApiExplorer();
 // 5. Регистрация на услуги (Services)
 builder.Services.AddHttpClient<TranslationService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();  // ✅ ДОБАВЕНО
 
 // 6. Swagger Конфигурация
 builder.Services.AddSwaggerGen(c =>
@@ -121,6 +122,8 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 var app = builder.Build();
 

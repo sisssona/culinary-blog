@@ -7,7 +7,8 @@ const MAX_TAGS = 6;
 const GROUP_ORDER = ['time', 'occasion', 'diet', 'difficulty', 'method'];
 
 export default function TagInput({ selectedTags, onChange }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const lang = i18n.language || 'bg';
     const [tagsByGroup, setTagsByGroup] = useState({});
     const [openGroups, setOpenGroups] = useState({});
     const [panelOpen, setPanelOpen] = useState(true);
@@ -26,7 +27,7 @@ export default function TagInput({ selectedTags, onChange }) {
             .catch(() => setTagsByGroup({}));
     }, []);
 
-    const tagLabel = (tag) => t(`recipe.tagsMapping.${tag.slug}`, tag.name);
+    const tagLabel = (tag) => (lang === 'bg' ? tag.name : (tag.nameEn || tag.name));
     const groupLabel = (group) => t(`guidelines.groups.${group}`, group);
 
     const isSelected = (tagId) => selectedTags.some((tg) => tg.id === tagId);

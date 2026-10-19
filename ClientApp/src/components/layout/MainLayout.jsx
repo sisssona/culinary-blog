@@ -10,15 +10,20 @@ import AddRecipePage from '../../pages/AddRecipePage';
 import RecipeDetails from '../../pages/RecipeDetails';
 import EditRecipe from '../../pages/EditRecipe';
 import MyRecipes from '../../pages/MyRecipes';
+import ConfirmEmailPage from '../../pages/ConfirmEmailPage';
+import ResetPasswordPage from '../../pages/ResetPasswordPage';
 import LoginModal from '../LoginModal';
+import VerificationBanner from '../VerificationBanner';
 import { ProtectedRoute } from '../ProtectedRoute';
 import AdminCategoriesPage from '../../pages/AdminCategoriesPage';
-
+import InfoPage from '../../pages/InfoPage';
+import { useAuth } from '../../context/AuthContext';
 
 import { useState } from 'react';
 
 export default function MainLayout() {
     const [isLoginOpen, setIsLoginOpen] = useState(false);
+    const { user } = useAuth();
 
     return (
         <div className="layout-container">
@@ -28,6 +33,10 @@ export default function MainLayout() {
 
             <SearchBar />
 
+            {user && user.emailConfirmed === false && (
+                <VerificationBanner userEmail={user.email} />
+            )}
+
             <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
 
             <main>
@@ -35,6 +44,11 @@ export default function MainLayout() {
                     <Route path="/" element={<HomePage />} />
                     <Route path="/recipes" element={<RecipeListPage />} />
                     <Route path="/recipes/:id" element={<RecipeDetails />} />
+                    <Route path="/about" element={<InfoPage kind="about" />} />
+                    <Route path="/encyclopedia" element={<InfoPage kind="encyclopedia" />} />
+
+                    <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                     <Route element={<ProtectedRoute />}>
                         <Route path="/add-recipe" element={<AddRecipePage />} />
@@ -47,7 +61,6 @@ export default function MainLayout() {
                         <Route path="/admin/categories" element={<AdminCategoriesPage />} />
                     </Route>
                 </Routes>
-
             </main>
 
             <Footer />

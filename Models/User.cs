@@ -17,6 +17,18 @@ public class User
     [MaxLength(500)]
     public string Bio { get; set; } = string.Empty;
 
+    // --- Потвърждение на имейл ---
+    public bool EmailConfirmed { get; set; } = false;
+
+    [MaxLength(100)]
+    public string? EmailConfirmationToken { get; set; }
+    public DateTime? EmailConfirmationTokenExpiresAt { get; set; }
+
+    // --- Забравена парола ---
+    [MaxLength(100)]
+    public string? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetTokenExpiresAt { get; set; }
+
     public ICollection<Recipe> Recipes { get; set; } = new List<Recipe>();
     public ICollection<Comment> Comments { get; set; } = new List<Comment>();
     public ICollection<Like> Likes { get; set; } = new List<Like>();

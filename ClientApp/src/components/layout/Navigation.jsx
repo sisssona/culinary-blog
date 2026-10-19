@@ -7,7 +7,7 @@ import { getCategories } from '../../api/recipeService';
 const CLOSE_DELAY = 150; // ms — small buffer so moving the mouse between items doesn't flicker
 
 export default function Navigation() {
-    const { i18n } = useTranslation();
+    const { t, i18n } = useTranslation();
     const lang = i18n.language || 'bg';
     const { isAdmin } = useAuth();
     const location = useLocation();
@@ -24,7 +24,6 @@ export default function Navigation() {
     }, []);
 
     // Close any open dropdown (and the mobile panel) whenever the route changes
-    // (e.g. clicking the logo/"Начало", or picking a category/subcategory).
     useEffect(() => {
         setOpenId(null);
         setMobileOpen(false);
@@ -49,12 +48,13 @@ export default function Navigation() {
                 className="nav-hamburger"
                 onClick={() => setMobileOpen((prev) => !prev)}
                 aria-expanded={mobileOpen}
+                aria-label={t('nav.hamburgerAria')}
             >
-                <span>☰</span> Категории
+                <span>☰</span> {t('nav.recipeCategories')}
             </button>
 
             <nav className={`nav-categories${mobileOpen ? ' open' : ''}`}>
-                <Link to="/recipes">Всички рецепти</Link>
+                <Link to="/recipes">{t('nav.allRecipes')}</Link>
 
                 {categories.map((cat) => {
                     const hasChildren = cat.subCategories && cat.subCategories.length > 0;
@@ -90,7 +90,7 @@ export default function Navigation() {
                                         to={`/recipes?category=${cat.slug}`}
                                         onClick={() => setOpenId(null)}
                                     >
-                                        Всички от {label(cat)}
+                                        {t('nav.allFromCategory', { name: label(cat) })}
                                     </Link>
                                     {cat.subCategories.map((sub) => (
                                         <Link
@@ -108,7 +108,7 @@ export default function Navigation() {
                 })}
 
                 {isAdmin && (
-                    <Link to="/admin/categories" className="admin-link">Админ</Link>
+                    <Link to="/admin/categories" className="admin-link">{t('nav.admin')}</Link>
                 )}
             </nav>
         </div>

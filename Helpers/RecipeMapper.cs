@@ -15,7 +15,7 @@ public static class RecipeMapper
         var ratings = r.Ratings?.ToList() ?? new List<Rating>();
         var avg = ratings.Count == 0 ? 0 : Math.Round(ratings.Average(x => x.Value), 1);
         var tags = (r.Tags ?? new List<Tag>())
-            .Select(t => new TagDto(t.Id, t.Name, t.Slug))
+            .Select(t => new TagDto(t.Id, t.Name, t.NameEn, t.Slug))
             .ToList();
 
         return new RecipeCardDto(

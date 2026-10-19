@@ -14,7 +14,6 @@ using System.Linq;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
-using System.Threading;
 
 namespace CulinaryBlog.Controllers;
 
@@ -57,7 +56,8 @@ public class RecipesController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            query = query.Where(r => r.CategoryEntity != null && r.CategoryEntity.Slug == category);
+            query = query.Where(r =>
+                r.CategoryEntity != null && r.CategoryEntity.Slug == category);
         }
 
         if (!string.IsNullOrWhiteSpace(tag))
@@ -71,7 +71,11 @@ public class RecipesController : ControllerBase
             query = query.Where(r =>
                 EF.Functions.ILike(r.Title, $"%{term}%") ||
                 EF.Functions.ILike(r.Ingredients, $"%{term}%") ||
-                EF.Functions.ILike(r.Instructions, $"%{term}%"));
+                EF.Functions.ILike(r.Instructions, $"%{term}%") ||
+                r.Translations.Any(tr =>
+                    EF.Functions.ILike(tr.Title, $"%{term}%") ||
+                    EF.Functions.ILike(tr.Ingredients, $"%{term}%") ||
+                    EF.Functions.ILike(tr.Instructions, $"%{term}%")));
         }
 
         query = sort switch
@@ -155,24 +159,6 @@ public class RecipesController : ControllerBase
         return Ok(recipes.Select(r => RecipeMapper.ToCard(r, lang)));
     }
 
-    [HttpPost("translate-all-existing")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> TranslateAllExistingRecipes(CancellationToken cancellationToken)
-    {
-        var recipesWithoutEn = await _context.Recipes
-            .Include(r => r.Translations)
-            .Where(r => !r.Translations.Any(t => t.Language.ToLower() == "en"))
-            .ToListAsync(cancellationToken);
-
-        foreach (var recipe in recipesWithoutEn)
-        {
-            await AddEnglishTranslationAsync(recipe, cancellationToken);
-        }
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return Ok(new { message = $"Успешно бяха преведени {recipesWithoutEn.Count} стари рецепти на английски език." });
-    }
-
     [HttpGet("pending")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Pending([FromQuery] string lang = "bg", CancellationToken cancellationToken = default)
@@ -199,9 +185,10 @@ public class RecipesController : ControllerBase
 
         if (similar.Count < 4)
         {
-            var existingIds = similar.Select(s => s.Id).Append(recipe.Id).ToList();
+            var takenIds = similar.Select(s => s.Id).ToList();
+            takenIds.Add(recipe.Id);
             var extra = await BaseRecipeQuery()
-                .Where(r => r.Status == "approved" && !existingIds.Contains(r.Id))
+                .Where(r => r.Status == "approved" && !takenIds.Contains(r.Id))
                 .OrderByDescending(r => r.CreatedAt)
                 .Take(4 - similar.Count)
                 .ToListAsync(cancellationToken);
@@ -217,15 +204,8 @@ public class RecipesController : ControllerBase
         var recipe = await FindRecipeAsync(idOrSlug, cancellationToken);
         if (recipe == null) return NotFound();
 
-        if (lang.Equals("en", StringComparison.OrdinalIgnoreCase) &&
-            !recipe.Translations.Any(t => t.Language.Equals("en", StringComparison.OrdinalIgnoreCase)))
-        {
-            await AddEnglishTranslationAsync(recipe, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-
         TryGetUserId(out var userId);
-        var isOwnerOrAdmin = userId != 0 && (userId == recipe.AuthorId || User.IsInRole("Admin"));
+        var isOwnerOrAdmin = userId == recipe.AuthorId || User.IsInRole("Admin");
         if (recipe.Status != "approved" && !isOwnerOrAdmin)
             return NotFound();
 
@@ -244,6 +224,13 @@ public class RecipesController : ControllerBase
     {
         if (!TryGetUserId(out var authorId))
             return Unauthorized();
+
+        var currentUser = await _context.Users.FindAsync(new object[] { authorId }, cancellationToken);
+        if (currentUser == null)
+            return Unauthorized();
+
+        if (!currentUser.EmailConfirmed)
+            return BadRequest(new { error = "Трябва да потвърдите имейла си, преди да публикувате рецепта. Проверете пощата си или поискайте нов линк за потвърждение." });
 
         if (!dto.AgreedToTerms)
             return BadRequest(new { error = "Трябва да приемете условията за публикуване, за да качите рецепта." });
@@ -265,15 +252,14 @@ public class RecipesController : ControllerBase
             Title = dto.Title,
             Category = category.Name,
             CategoryId = category.Id,
-            Ingredients = dto.Ingredients?.Count > 0 
-                ? string.Join('\n', dto.Ingredients.Select(i => 
-                    string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"))
-                : string.Empty,
+            Ingredients = dto.Ingredients,
             Instructions = dto.Instructions,
             ImageUrl = imageUrl,
             ThumbnailUrl = thumbnailUrl,
             AuthorId = authorId,
             CreatedAt = DateTime.UtcNow,
+            // Post-moderation: every recipe is published immediately;
+            // admins remove inappropriate ones afterwards.
             Status = "approved",
             IsFeatured = isAdmin && dto.IsFeatured,
             PrepTimeMinutes = dto.PrepTimeMinutes,
@@ -294,69 +280,17 @@ public class RecipesController : ControllerBase
 
         await AddEnglishTranslationAsync(recipe, cancellationToken);
 
-        var formFiles = Request?.Form?.Files?.ToList() ?? new List<IFormFile>();
-        var additionalFiles = formFiles.Where(f => dto.ImageFile == null || !ReferenceEquals(f, dto.ImageFile)).ToList();
-
-        const int maxFiles = 10;
-        const long maxFileSizeBytes = 50L * 1024 * 1024;
-
-        if (additionalFiles.Count > maxFiles)
-            return BadRequest(new { error = $"Max {maxFiles} media files are allowed." });
-
-        var mediaEntities = new List<RecipeMedia>();
-        for (var i = 0; i < additionalFiles.Count; i++)
-        {
-            var file = additionalFiles[i];
-            if (file.Length == 0 || file.Length > maxFileSizeBytes)
-                return BadRequest(new { error = $"File '{file.FileName}' is empty or exceeds size limit." });
-
-            string mediaType = "image";
-            if (!string.IsNullOrEmpty(file.ContentType) && file.ContentType.StartsWith("video"))
-                mediaType = "video";
-            else
-            {
-                try
-                {
-                    using var stream = file.OpenReadStream();
-                    if (!LooksLikeImage(stream) && !file.ContentType.StartsWith("image"))
-                    {
-                        mediaType = "video";
-                    }
-                }
-                catch
-                {
-                    mediaType = "video";
-                }
-            }
-
-            var upload = await _fileStorage.SaveFileAsync(file, "temp", cancellationToken);
-            var url = upload?.MainImageUrl ?? string.Empty;
-            var thumb = upload?.ThumbnailUrl;
-
-            var media = new RecipeMedia
-            {
-                Url = url,
-                ThumbnailUrl = thumb,
-                MediaType = mediaType,
-                SortOrder = i,
-                IsPrimary = false,
-                State = "processing",
-                UploadedAt = DateTime.UtcNow,
-                UploadedBy = authorId
-            };
-            mediaEntities.Add(media);
-        }
-
         _context.Recipes.Add(recipe);
         await _context.SaveChangesAsync(cancellationToken);
 
-        if (mediaEntities.Count > 0)
-        {
-            foreach (var m in mediaEntities)
-                m.RecipeId = recipe.Id;
-            _context.Set<RecipeMedia>().AddRange(mediaEntities);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
+        var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+        await auditService.LogActionAsync(
+            authorId,
+            "Create",
+            "Recipe",
+            recipe.Id,
+            $"Рецепта '{recipe.Title}' със статус '{recipe.Status}'"
+        );
 
         return CreatedAtAction(nameof(GetById), new { idOrSlug = recipe.Slug }, RecipeMapper.ToDetail(recipe, "bg", authorId));
     }
@@ -365,19 +299,24 @@ public class RecipesController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Update(int id, [FromForm] RecipeUpdateDto dto, CancellationToken cancellationToken)
     {
+        if (!TryGetUserId(out var currentUserId))
+            return Unauthorized();
+
         var recipe = await FindRecipeAsync(id.ToString(), cancellationToken);
         if (recipe == null) return NotFound();
 
-        if (!CanEdit(recipe))
+        if (!await CanEditWithAuditAsync(recipe, currentUserId, "Update"))
             return Forbid();
+
+        var originalTitle = recipe.Title;  // For audit log
 
         if (dto.ImageFile != null && dto.ImageFile.Length > 0)
         {
             if (!string.IsNullOrEmpty(recipe.ImageUrl)) _fileStorage.DeleteFile(recipe.ImageUrl);
             if (!string.IsNullOrEmpty(recipe.ThumbnailUrl)) _fileStorage.DeleteFile(recipe.ThumbnailUrl);
-            var (imageUrl, thumbnailUrl) = await SaveImageAsync(dto.ImageFile, cancellationToken);
-            recipe.ImageUrl = imageUrl;
-            recipe.ThumbnailUrl = thumbnailUrl;
+            var upload = await SaveImageAsync(dto.ImageFile, cancellationToken);
+            recipe.ImageUrl = upload.imageUrl;
+            recipe.ThumbnailUrl = upload.thumbnailUrl;
         }
 
         if (!string.IsNullOrWhiteSpace(dto.TagsJson))
@@ -399,16 +338,12 @@ public class RecipesController : ControllerBase
         recipe.Title = dto.Title;
         recipe.Category = category.Name;
         recipe.CategoryId = category.Id;
-        recipe.Ingredients = dto.Ingredients?.Count > 0
-            ? string.Join('\n', dto.Ingredients.Select(i =>
-                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"))
-            : string.Empty;
+        recipe.Ingredients = dto.Ingredients;
         recipe.Instructions = dto.Instructions;
         recipe.PrepTimeMinutes = dto.PrepTimeMinutes;
         recipe.CookTimeMinutes = dto.CookTimeMinutes;
         recipe.Servings = dto.Servings <= 0 ? recipe.Servings : dto.Servings;
         recipe.Difficulty = string.IsNullOrWhiteSpace(dto.Difficulty) ? recipe.Difficulty : dto.Difficulty;
-
         if (User.IsInRole("Admin"))
             recipe.IsFeatured = dto.IsFeatured;
 
@@ -416,7 +351,65 @@ public class RecipesController : ControllerBase
         await AddEnglishTranslationAsync(recipe, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Audit log
+        var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+        await auditService.LogActionAsync(
+            currentUserId,
+            "Update",
+            "Recipe",
+            id,
+            $"Рецепта '{originalTitle}' → '{recipe.Title}'"
+        );
+
         return Ok(RecipeMapper.ToDetail(recipe, "bg", recipe.AuthorId));
+    }
+
+    // POST: api/v1/recipes/backfill-translations
+    // Admin tool: generates the missing English translation for every recipe
+    // that doesn't have one yet (e.g. recipes created by the database seeder,
+    // which bypasses Create()/Update()).
+    [HttpPost("backfill-translations")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> BackfillTranslations(CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminId))
+            return Unauthorized();
+
+        var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+        const int batchSize = 100;
+        var totalProcessed = 0;
+
+        // No Skip(): every processed recipe gets an "en" translation and drops out
+        // of the filter by itself, so always taking the first batch is correct.
+        while (true)
+        {
+            var recipes = await _context.Recipes
+                .Include(r => r.Translations)
+                .Where(r => !r.Translations.Any(t => t.Language == "en"))
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+
+            if (recipes.Count == 0) break;
+
+            foreach (var recipe in recipes)
+            {
+                await AddEnglishTranslationAsync(recipe, cancellationToken);
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            totalProcessed += recipes.Count;
+        }
+
+        // Audit log
+        await auditService.LogActionAsync(
+            adminId,
+            "BackfillTranslations",
+            "Recipe",
+            null,
+            $"Обновени {totalProcessed} рецепти с английски преводи"
+        );
+
+        return Ok(new { processed = totalProcessed });
     }
 
     [HttpPost("{id}/approve")]
@@ -425,8 +418,23 @@ public class RecipesController : ControllerBase
     {
         var recipe = await _context.Recipes.FindAsync(new object[] { id }, cancellationToken);
         if (recipe == null) return NotFound();
+
+        if (!TryGetUserId(out var adminId))
+            return Unauthorized();
+
         recipe.Status = "approved";
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Audit log
+        var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+        await auditService.LogActionAsync(
+            adminId,
+            "Approve",
+            "Recipe",
+            id,
+            $"Одобрена рецепта '{recipe.Title}' от {recipe.AuthorId}"
+        );
+
         return Ok(new { recipe.Id, recipe.Status });
     }
 
@@ -436,8 +444,23 @@ public class RecipesController : ControllerBase
     {
         var recipe = await _context.Recipes.FindAsync(new object[] { id }, cancellationToken);
         if (recipe == null) return NotFound();
+
+        if (!TryGetUserId(out var adminId))
+            return Unauthorized();
+
         recipe.Status = "rejected";
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Audit log
+        var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+        await auditService.LogActionAsync(
+            adminId,
+            "Reject",
+            "Recipe",
+            id,
+            $"Отхвърлена рецепта '{recipe.Title}' от {recipe.AuthorId}"
+        );
+
         return Ok(new { recipe.Id, recipe.Status });
     }
 
@@ -445,17 +468,51 @@ public class RecipesController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
+        if (!TryGetUserId(out var currentUserId))
+            return Unauthorized();
+
         var recipe = await _context.Recipes.FindAsync(new object[] { id }, cancellationToken);
         if (recipe == null) return NotFound();
-        if (!CanEdit(recipe))
+        if (!await CanEditWithAuditAsync(recipe, currentUserId, "Delete"))
             return Forbid();
 
-        if (!string.IsNullOrEmpty(recipe.ImageUrl)) _fileStorage.DeleteFile(recipe.ImageUrl);
-        if (!string.IsNullOrEmpty(recipe.ThumbnailUrl)) _fileStorage.DeleteFile(recipe.ThumbnailUrl);
+        var recipeTitle = recipe.Title;  // Capture for logging
+        var recipeAuthorId = recipe.AuthorId;
 
-        _context.Recipes.Remove(recipe);
-        await _context.SaveChangesAsync(cancellationToken);
-        return NoContent();
+        try
+        {
+            if (!string.IsNullOrEmpty(recipe.ImageUrl))
+                _fileStorage.DeleteFile(recipe.ImageUrl);
+            if (!string.IsNullOrEmpty(recipe.ThumbnailUrl))
+                _fileStorage.DeleteFile(recipe.ThumbnailUrl);
+
+            _context.Recipes.Remove(recipe);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            // Audit log
+            var auditLog = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+            await auditLog.LogActionAsync(
+                currentUserId,
+                "Delete",
+                "Recipe",
+                id,
+                $"Рецепта '{recipeTitle}' от потребител {recipeAuthorId}"
+            );
+
+            return Ok(new { message = "Рецептата е успешно изтрита.", recipeId = id });
+        }
+        catch (Exception ex)
+        {
+            var auditLog = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+            await auditLog.LogActionAsync(
+                currentUserId,
+                "Delete (FAILED)",
+                "Recipe",
+                id,
+                $"Грешка: {ex.Message}"
+            );
+            throw;
+        }
     }
 
     private IQueryable<Recipe> BaseRecipeQuery() =>
@@ -482,7 +539,6 @@ public class RecipesController : ControllerBase
 
     private bool TryGetUserId(out int userId)
     {
-        userId = 0;
         var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return int.TryParse(claim, out userId);
     }
@@ -498,7 +554,7 @@ public class RecipesController : ControllerBase
         if (file == null || file.Length == 0)
             return (null, null);
         var upload = await _fileStorage.SaveFileAsync(file, "uploads", cancellationToken);
-        return (upload?.MainImageUrl, upload?.ThumbnailUrl);
+        return (upload.MainImageUrl, upload.ThumbnailUrl);
     }
 
     private async Task<Category> ResolveCategoryAsync(CreateRecipeDto dto, CancellationToken cancellationToken)
@@ -515,6 +571,7 @@ public class RecipesController : ControllerBase
         return category;
     }
 
+    // overload for update DTO
     private async Task<Category> ResolveCategoryAsync(RecipeUpdateDto dto, CancellationToken cancellationToken)
     {
         Category? category = null;
@@ -545,22 +602,23 @@ public class RecipesController : ControllerBase
 
     private static void ApplyStructuredContent(Recipe recipe, CreateRecipeDto dto, bool replace = false)
     {
-        var ingredientLines = ParseIngredients(dto.IngredientsJson);
-        var stepLines = ParseSteps(dto.StepsJson);
+        var ingredientLines = ParseIngredients(dto);
+        var stepLines = ParseSteps(dto);
 
         if (ingredientLines.Count > 0)
         {
-            if (replace) recipe.IngredientItems.Clear();
+            if (replace)
+                recipe.IngredientItems.Clear();
             foreach (var item in ingredientLines)
                 recipe.IngredientItems.Add(item);
             recipe.Ingredients = string.Join('\n', ingredientLines.Select(i =>
                 string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"));
         }
-        else if (dto.Ingredients?.Count > 0)
+        else if (!string.IsNullOrWhiteSpace(dto.Ingredients))
         {
-            if (replace) recipe.IngredientItems.Clear();
-            var lines = RecipeMapper.SplitLines(string.Join('\n', dto.Ingredients.Select(i =>
-                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}")));
+            if (replace)
+                recipe.IngredientItems.Clear();
+            var lines = RecipeMapper.SplitLines(dto.Ingredients);
             for (var i = 0; i < lines.Count; i++)
             {
                 var parsed = RecipeMapper.ParseIngredient(lines[i]);
@@ -571,19 +629,20 @@ public class RecipesController : ControllerBase
                     Name = parsed.Name
                 });
             }
-            recipe.Ingredients = string.Join('\n', lines);
         }
 
         if (stepLines.Count > 0)
         {
-            if (replace) recipe.Steps.Clear();
+            if (replace)
+                recipe.Steps.Clear();
             foreach (var step in stepLines)
                 recipe.Steps.Add(step);
             recipe.Instructions = string.Join('\n', stepLines.Select(s => s.Text));
         }
         else if (!string.IsNullOrWhiteSpace(dto.Instructions))
         {
-            if (replace) recipe.Steps.Clear();
+            if (replace)
+                recipe.Steps.Clear();
             var lines = RecipeMapper.SplitLines(dto.Instructions);
             for (var i = 0; i < lines.Count; i++)
             {
@@ -592,63 +651,13 @@ public class RecipesController : ControllerBase
         }
     }
 
-    // Overload for RecipeUpdateDto
-    private static void ApplyStructuredContent(Recipe recipe, RecipeUpdateDto dto, bool replace = false)
+    private static List<RecipeIngredient> ParseIngredients(CreateRecipeDto dto)
     {
-        var ingredientLines = ParseIngredients(dto.IngredientsJson);
-        var stepLines = ParseSteps(dto.StepsJson);
-
-        if (ingredientLines.Count > 0)
-        {
-            if (replace) recipe.IngredientItems.Clear();
-            foreach (var item in ingredientLines)
-                recipe.IngredientItems.Add(item);
-            recipe.Ingredients = string.Join('\n', ingredientLines.Select(i =>
-                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"));
-        }
-        else if (dto.Ingredients?.Count > 0)
-        {
-            if (replace) recipe.IngredientItems.Clear();
-            var lines = RecipeMapper.SplitLines(string.Join('\n', dto.Ingredients.Select(i =>
-                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}")));
-            for (var i = 0; i < lines.Count; i++)
-            {
-                var parsed = RecipeMapper.ParseIngredient(lines[i]);
-                recipe.IngredientItems.Add(new RecipeIngredient
-                {
-                    SortOrder = i,
-                    Amount = parsed.Amount,
-                    Name = parsed.Name
-                });
-            }
-            recipe.Ingredients = string.Join('\n', lines);
-        }
-
-        if (stepLines.Count > 0)
-        {
-            if (replace) recipe.Steps.Clear();
-            foreach (var step in stepLines)
-                recipe.Steps.Add(step);
-            recipe.Instructions = string.Join('\n', stepLines.Select(s => s.Text));
-        }
-        else if (!string.IsNullOrWhiteSpace(dto.Instructions))
-        {
-            if (replace) recipe.Steps.Clear();
-            var lines = RecipeMapper.SplitLines(dto.Instructions);
-            for (var i = 0; i < lines.Count; i++)
-            {
-                recipe.Steps.Add(new RecipeStep { SortOrder = i + 1, Text = lines[i] });
-            }
-        }
-    }
-
-    private static List<RecipeIngredient> ParseIngredients(string? ingredientsJson)
-    {
-        if (string.IsNullOrWhiteSpace(ingredientsJson))
+        if (string.IsNullOrWhiteSpace(dto.IngredientsJson))
             return new List<RecipeIngredient>();
         try
         {
-            var items = JsonSerializer.Deserialize<List<IngredientLineDto>>(ingredientsJson, new JsonSerializerOptions
+            var items = JsonSerializer.Deserialize<List<IngredientLineDto>>(dto.IngredientsJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             }) ?? new List<IngredientLineDto>();
@@ -665,21 +674,20 @@ public class RecipesController : ControllerBase
         }
     }
 
-    private static List<RecipeStep> ParseSteps(string? stepsJson)
+    private static List<RecipeStep> ParseSteps(CreateRecipeDto dto)
     {
-        if (string.IsNullOrWhiteSpace(stepsJson))
+        if (string.IsNullOrWhiteSpace(dto.StepsJson))
             return new List<RecipeStep>();
         try
         {
-            var items = JsonSerializer.Deserialize<List<StepLineDto>>(stepsJson, new JsonSerializerOptions
+            var items = JsonSerializer.Deserialize<List<StepLineDto>>(dto.StepsJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             }) ?? new List<StepLineDto>();
-
             return items.Select((item, i) => new RecipeStep
             {
                 SortOrder = item.SortOrder == 0 ? i + 1 : item.SortOrder,
-                Text = item.Text ?? string.Empty
+                Text = item.Text
             }).Where(s => !string.IsNullOrWhiteSpace(s.Text)).ToList();
         }
         catch
@@ -713,36 +721,27 @@ public class RecipesController : ControllerBase
         }
     }
 
-    public static bool LooksLikeImage(Stream s)
+    /// <summary>
+    /// Проверява дали потребителят има право да редактира рецепта.
+    /// Логва отказаните опити за достъп. Използване:
+    /// if (!await CanEditWithAuditAsync(recipe, currentUserId, "Update")) return Forbid();
+    /// </summary>
+    private async Task<bool> CanEditWithAuditAsync(Recipe recipe, int currentUserId, string action)
     {
-        if (s == null || !s.CanRead)
-            return false;
+        var isAllowed = recipe.AuthorId == currentUserId || User.IsInRole("Admin");
 
-        var originalPosition = 0L;
-        try
+        if (!isAllowed)
         {
-            if (s.CanSeek)
-            {
-                originalPosition = s.Position;
-                s.Position = 0;
-            }
-
-            var header = new byte[12];
-            var read = s.Read(header, 0, header.Length);
-
-            if (read >= 2 && header[0] == 0xFF && header[1] == 0xD8) return true;
-            if (read >= 3 && header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E) return true;
-            if (read >= 12 && header[0] == (byte)'R' && header[1] == (byte)'I' && header[8] == (byte)'W' && header[9] == (byte)'E')
-                return true;
-
-            return false;
+            var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+            await auditService.LogActionAsync(
+                currentUserId,
+                $"{action} (DENIED)",
+                "Recipe",
+                recipe.Id,
+                $"Отказан достъп - потребител {currentUserId} не е собственик на рецепта {recipe.Id}"
+            );
         }
-        finally
-        {
-            if (s.CanSeek)
-            {
-                s.Position = originalPosition;
-            }
-        }
+
+        return isAllowed;
     }
 }

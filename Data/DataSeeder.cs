@@ -20,6 +20,7 @@ public static class DataSeeder
                 Bio = "Екипът на кулинарния блог.",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
                 Role = "Admin",
+                EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow
             };
             var cook = new User
@@ -29,6 +30,7 @@ public static class DataSeeder
                 Bio = "Домашна кухня, сезонни салати и яхнии.",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Cook123!"),
                 Role = "User",
+                EmailConfirmed = true,
                 CreatedAt = DateTime.UtcNow
             };
             context.Users.AddRange(admin, cook);
@@ -133,8 +135,8 @@ public static class DataSeeder
                 new Article
                 {
                     Title = "Тайната на сочното свинско печено",
-                    Excerpt = "Температура, почивка на месото и марината — трите стъпки, които променят печеното.",
                     Slug = "taynata-na-sochnoto-svinsko-pecheno",
+                    Excerpt = "Температура, почивка на месото и марината — трите стъпки, които променят печеното.",
                     Body = "Мариновайте месото поне 4 часа. Печете първо на по-висока температура за коричка, после намалете. Оставете печеното да почине 10 минути преди нарязване, за да се върнат соковете.",
                     AuthorId = author.Id,
                     CreatedAt = DateTime.UtcNow.AddDays(-1)
@@ -260,53 +262,53 @@ public static class DataSeeder
     private static void SeedTags(ApplicationDbContext context)
     {
         // Time / speed
-        UpsertTag(context, "byrzo", "Бързо (до 30 мин)", "time");
-        UpsertTag(context, "super-byrzo", "Супер бързо (до 15 мин)", "time");
-        UpsertTag(context, "za-vecherya", "За вечеря", "time");
-        UpsertTag(context, "za-obyad", "За обяд", "time");
-        UpsertTag(context, "byrza-zakuska", "Бърза закуска", "time");
-        UpsertTag(context, "podgotovka-predvaritelno", "Подготовка предварително", "time");
+        UpsertTag(context, "byrzo", "Бързо (до 30 мин)", "Quick (under 30 min)", "time");
+        UpsertTag(context, "super-byrzo", "Супер бързо (до 15 мин)", "Super quick (under 15 min)", "time");
+        UpsertTag(context, "za-vecherya", "За вечеря", "For dinner", "time");
+        UpsertTag(context, "za-obyad", "За обяд", "For lunch", "time");
+        UpsertTag(context, "byrza-zakuska", "Бърза закуска", "Quick breakfast", "time");
+        UpsertTag(context, "podgotovka-predvaritelno", "Подготовка предварително", "Meal prep", "time");
 
         // Occasion
-        UpsertTag(context, "praznichno", "Празнично", "occasion");
-        UpsertTag(context, "semeyna-vecherya", "Семейна вечеря", "occasion");
-        UpsertTag(context, "za-parti", "За парти", "occasion");
-        UpsertTag(context, "sutreshno-kafe", "Сутрешно кафе", "occasion");
-        UpsertTag(context, "za-navan", "За на вън", "occasion");
-        UpsertTag(context, "koleda", "Коледа", "occasion");
-        UpsertTag(context, "velikden-tag", "Великден", "occasion");
-        UpsertTag(context, "letni-recepti", "Летни рецепти", "occasion");
-        UpsertTag(context, "zimni-recepti", "Зимни рецепти", "occasion");
-        UpsertTag(context, "za-detsa", "За деца", "occasion");
+        UpsertTag(context, "praznichno", "Празнично", "Festive", "occasion");
+        UpsertTag(context, "semeyna-vecherya", "Семейна вечеря", "Family dinner", "occasion");
+        UpsertTag(context, "za-parti", "За парти", "Party", "occasion");
+        UpsertTag(context, "sutreshno-kafe", "Сутрешно кафе", "Morning coffee", "occasion");
+        UpsertTag(context, "za-navan", "За на вън", "Outdoor / Picnic", "occasion");
+        UpsertTag(context, "koleda", "Коледа", "Christmas", "occasion");
+        UpsertTag(context, "velikden-tag", "Великден", "Easter", "occasion");
+        UpsertTag(context, "letni-recepti", "Летни рецепти", "Summer recipes", "occasion");
+        UpsertTag(context, "zimni-recepti", "Зимни рецепти", "Winter recipes", "occasion");
+        UpsertTag(context, "za-detsa", "За деца", "Kid-friendly", "occasion");
 
         // Diet / health
-        UpsertTag(context, "vegetariansko", "Вегетарианско", "diet");
-        UpsertTag(context, "vegan", "Веган", "diet");
-        UpsertTag(context, "postno", "Постно", "diet");
-        UpsertTag(context, "keto", "Кето", "diet");
-        UpsertTag(context, "niskovaglehidratno", "Нисковъглехидратно", "diet");
-        UpsertTag(context, "fitness", "Фитнес", "diet");
-        UpsertTag(context, "visokoproteinovo", "Високопротеиново", "diet");
-        UpsertTag(context, "bez-gluten", "Без глутен", "diet");
-        UpsertTag(context, "bez-laktoza", "Без лактоза", "diet");
-        UpsertTag(context, "bez-zahar", "Без захар", "diet");
-        UpsertTag(context, "diabetno-priyatelsko", "Диабетно приятелско", "diet");
+        UpsertTag(context, "vegetariansko", "Вегетарианско", "Vegetarian", "diet");
+        UpsertTag(context, "vegan", "Веган", "Vegan", "diet");
+        UpsertTag(context, "postno", "Постно", "Lenten / Fasting", "diet");
+        UpsertTag(context, "keto", "Кето", "Keto", "diet");
+        UpsertTag(context, "niskovaglehidratno", "Нисковъглехидратно", "Low carb", "diet");
+        UpsertTag(context, "fitness", "Фитнес", "Fitness", "diet");
+        UpsertTag(context, "visokoproteinovo", "Високопротеиново", "High protein", "diet");
+        UpsertTag(context, "bez-gluten", "Без глутен", "Gluten-free", "diet");
+        UpsertTag(context, "bez-laktoza", "Без лактоза", "Lactose-free", "diet");
+        UpsertTag(context, "bez-zahar", "Без захар", "Sugar-free", "diet");
+        UpsertTag(context, "diabetno-priyatelsko", "Диабетно приятелско", "Diabetic friendly", "diet");
 
         // Difficulty / budget
-        UpsertTag(context, "lesno", "Лесно", "difficulty");
-        UpsertTag(context, "slozhno", "Сложно", "difficulty");
-        UpsertTag(context, "byudzhetno", "Бюджетно", "difficulty");
-        UpsertTag(context, "ikonomichno", "Икономично", "difficulty");
-        UpsertTag(context, "luksozno", "Луксозно", "difficulty");
+        UpsertTag(context, "lesno", "Лесно", "Easy", "difficulty");
+        UpsertTag(context, "slozhno", "Сложно", "Complex", "difficulty");
+        UpsertTag(context, "byudzhetno", "Бюджетно", "Budget-friendly", "difficulty");
+        UpsertTag(context, "ikonomichno", "Икономично", "Economical", "difficulty");
+        UpsertTag(context, "luksozno", "Луксозно", "Luxury", "difficulty");
 
         // Method / equipment
-        UpsertTag(context, "na-furna", "На фурна", "method");
-        UpsertTag(context, "na-skara", "На скара", "method");
-        UpsertTag(context, "na-tigan", "На тиган", "method");
-        UpsertTag(context, "v-multikuker", "В мултикукър", "method");
-        UpsertTag(context, "v-airfryer", "В аърфрайър", "method");
-        UpsertTag(context, "bez-pechene", "Без печене", "method");
-        UpsertTag(context, "bavno-gotvene", "Бавно готвене", "method");
+        UpsertTag(context, "na-furna", "На фурна", "Baked", "method");
+        UpsertTag(context, "na-skara", "На скара", "Grilled", "method");
+        UpsertTag(context, "na-tigan", "На тиган", "Pan-fried", "method");
+        UpsertTag(context, "v-multikuker", "В мултикукър", "In a multi-cooker", "method");
+        UpsertTag(context, "v-airfryer", "В аърфрайър", "Air fryer", "method");
+        UpsertTag(context, "bez-pechene", "Без печене", "No-bake", "method");
+        UpsertTag(context, "bavno-gotvene", "Бавно готвене", "Slow cooking", "method");
 
         context.SaveChanges();
     }
@@ -345,12 +347,13 @@ public static class DataSeeder
 
     // Finds an existing tag by slug and updates its name/group, or creates
     // it if it doesn't exist yet. Never creates a duplicate slug.
-    private static Tag UpsertTag(ApplicationDbContext context, string slug, string name, string group)
+    private static Tag UpsertTag(ApplicationDbContext context, string slug, string name, string nameEn, string group)
     {
         var existing = context.Tags.FirstOrDefault(t => t.Slug == slug);
         if (existing != null)
         {
             existing.Name = name;
+            existing.NameEn = nameEn;
             existing.Group = group;
             return existing;
         }
@@ -359,6 +362,7 @@ public static class DataSeeder
         {
             Slug = slug,
             Name = name,
+            NameEn = nameEn,
             Group = group
         };
         context.Tags.Add(tag);

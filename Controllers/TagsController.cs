@@ -24,14 +24,14 @@ public class TagsController : ControllerBase
         var tags = await _context.Tags
             .OrderBy(t => t.Group)
             .ThenBy(t => t.Name)
-            .Select(t => new { t.Id, t.Name, t.Slug, t.Group })
+            .Select(t => new { t.Id, t.Name, t.NameEn, t.Slug, t.Group })
             .ToListAsync();
 
         return Ok(tags);
     }
 
     // GET: api/v1/tags/search?q=без
-    // Autosuggest: matches tag names containing the query, case-insensitive.
+    // Autosuggest: matches tag names (BG or EN) containing the query, case-insensitive.
     [HttpGet("search")]
     public async Task<IActionResult> Search([FromQuery] string q = "")
     {
@@ -40,10 +40,10 @@ public class TagsController : ControllerBase
 
         var term = q.Trim();
         var tags = await _context.Tags
-            .Where(t => EF.Functions.ILike(t.Name, $"%{term}%"))
+            .Where(t => EF.Functions.ILike(t.Name, $"%{term}%") || EF.Functions.ILike(t.NameEn, $"%{term}%"))
             .OrderBy(t => t.Name)
             .Take(10)
-            .Select(t => new { t.Id, t.Name, t.Slug, t.Group })
+            .Select(t => new { t.Id, t.Name, t.NameEn, t.Slug, t.Group })
             .ToListAsync();
 
         return Ok(tags);

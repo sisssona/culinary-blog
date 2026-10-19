@@ -10,6 +10,9 @@ public class Tag
     [MaxLength(60)]
     public string Name { get; set; } = string.Empty; // display text, e.g. "Без глутен"
 
+    [MaxLength(60)]
+    public string NameEn { get; set; } = string.Empty; // display text, e.g. "Gluten-free"
+
     [Required]
     [MaxLength(60)]
     public string Slug { get; set; } = string.Empty; // used in URLs, e.g. "bez-gluten"

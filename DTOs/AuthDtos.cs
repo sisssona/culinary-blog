@@ -4,7 +4,7 @@ namespace CulinaryBlog.Models;
 
 public record RegisterDto(
     [Required][EmailAddress] string Email,
-    [Required][MinLength(6)] string Password,
+    [Required][MinLength(8)] string Password,
     string? DisplayName
 );
 
@@ -18,7 +18,15 @@ public record AuthResponseDto(
     int UserId,
     string Email,
     string DisplayName,
-    string Role
+    string Role,
+    bool EmailConfirmed
 );
 
+public record ForgotPasswordDto(
+    [Required][EmailAddress] string Email
+);
 
+public record ResetPasswordDto(
+    [Required] string Token,
+    [Required][MinLength(8)] string NewPassword
+);
