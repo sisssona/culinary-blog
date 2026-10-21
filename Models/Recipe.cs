@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Collections.Generic;
 
@@ -33,6 +33,8 @@ public class Recipe
 
     public string Status { get; set; } = "pending";
     public bool IsFeatured { get; set; }
+
+    public bool IncludedInNewsletter { get; set; } = false;
 
     public int PrepTimeMinutes { get; set; }
     public int CookTimeMinutes { get; set; }

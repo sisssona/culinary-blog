@@ -53,6 +53,12 @@ public class EmailService : IEmailService
         return SendAsync(toEmail, subject, body, cancellationToken);
     }
 
+    // Универсален метод за пращане на имейли (използва се от бюлетина и други модули)
+    public Task SendEmailAsync(string toEmail, string subject, string body, CancellationToken cancellationToken = default)
+    {
+        return SendAsync(toEmail, subject, body, cancellationToken);
+    }
+
     private async Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken)
     {
         var section = _config.GetSection("Email");
@@ -79,8 +85,6 @@ public class EmailService : IEmailService
         }
         catch (Exception ex)
         {
-            // Never let a broken email provider block registration/reset —
-            // log it loudly so it's visible in `docker logs culinary_api`, but don't throw.
             _logger.LogError(ex, "Failed to send email to {ToEmail} with subject {Subject}", toEmail, subject);
         }
     }

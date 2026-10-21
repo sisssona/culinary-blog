@@ -1,4 +1,4 @@
-﻿import i18n from 'i18next';
+import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
@@ -19,9 +19,61 @@ const resources = {
             "alert_login": "Формата за вход ще бъде добавена скоро!",
             "btn_add_recipe": "+ Добави рецепта",
             "btn_my_recipes": "📖 Моите рецепти",
+            "home_featured": "Избрани рецепти",
+            "home_popular": "Най-популярни",
+            "home_latest": "Последни рецепти",
             "btn_logout": "Изход",
             "btn_delete": "🗑️ Изтрий",
             "btn_view_more": "Виж повече →",
+            "password_hint": "Минимум 8 символа.",
+            "registering": "Регистрация...",
+            "sending": "Изпращане...",
+            "show_password": "Покажи паролата",
+            "hide_password": "Скрий паролата",
+            "login_failed": "Грешка при вход.",
+            "close": "Затвори",
+            "verify_email_title": "Потвърждение на профила:",
+            "verify_email_body": "Вашият имейл адрес все още не е потвърден. Моля, проверете пощенската си кутия.",
+            "verify_email_resend": "Прати нов имейл",
+            "verify_email_sending": "Изпращане...",
+            "verify_email_resent": "Имейлът за потвърждение е изпратен отново успешно!",
+            "verify_email_resend_error": "Възникна грешка при изпращането.",
+            "subscribe_newsletter_label": "Искам да получавам нови рецепти и вдъхновения по имейл",
+
+            /* Ключове за футъра на най-горно ниво */
+            "newsletter_title": "Абонирайте се за нашия кулинарен бюлетин",
+            "newsletter_subtitle": "Получавайте най-вкусните нови рецепти и вдъхновения директно във вашата поща.",
+            "newsletter_placeholder": "Вашият имейл адрес...",
+            "newsletter_button": "Абонирай се",
+            "newsletter_submitting": "Запис...",
+            "newsletter_invalid_email": "Моля, въведете валиден имейл адрес.",
+            "newsletter_error_msg": "Възникна грешка при абонирането. Опитайте отново.",
+
+            "all_rights_reserved": "Всички права запазени.",
+            "privacy_policy": "Политика за поверителност",
+            "terms_of_service": "Общи условия",
+            "culinary_team": "Кулинарен екип",
+            "danger_zone_title": "Опасна зона",
+            "danger_zone_description": "След като изтриете профила си, няма връщане назад. Моля, уверете се, че наистина го желаете.",
+            "delete_account_btn": "Изтрий профила",
+            "user_already_exists": "Потребител с този имейл вече съществува.",
+            "invalid_credentials": "Невалиден имейл или парола.",
+            "missing_confirmation_token": "Липсва токен за потвърждение.",
+            "invalid_or_used_confirmation_link": "Невалиден или вече използван линк за потвърждение.",
+            "confirmation_link_expired": "Линкът за потвърждение е изтекъл. Поискайте нов.",
+            "email_confirmed_successfully": "Имейлът е потвърден успешно.",
+            "resend_confirmation_sent": "Ако имейлът съществува и не е потвърден, изпратихме нов линк.",
+            "password_reset_sent": "Ако имейлът съществува, изпратихме линк за възстановяване на паролата.",
+            "invalid_or_used_reset_link": "Невалиден или вече използван линк за възстановяване.",
+            "reset_link_expired": "Линкът е изтекъл. Поискайте нов.",
+            "password_too_short": "Паролата трябва да е поне 8 символа.",
+            "password_reset_success": "Паролата е сменена успешно. Вече можете да влезете.",
+            "verifying_email": "Потвърждаване на вашия имейл адрес...",
+            "success_title": "Успех!",
+            "error_title": "Грешка",
+            "please_wait": "Моля, изчакайте",
+            "back_to_home": "Към началната страница",
+            "error_confirming_email": "Възникна грешка при потвърждението на имейла.",
             "category_main": "Основни",
             "category_salads": "Салати",
             "category_desserts": "Десерти",
@@ -94,6 +146,29 @@ const resources = {
                 "allRecipes": "Всички рецепти",
                 "allFromCategory": "Всички от {{name}}",
                 "admin": "Админ"
+            },
+
+            "newsletter": {
+                "newsletter_title": "Абонирайте се за нашия кулинарен бюлетин",
+                "newsletter_subtitle": "Получавайте най-вкусните нови рецепти и вдъхновения директно във вашата поща.",
+                "newsletter_placeholder": "Вашият имейл адрес...",
+                "newsletter_button": "Абонирай се",
+                "newsletter_submitting": "Запис...",
+                "newsletter_invalid_email": "Моля, въведете валиден имейл адрес.",
+                "newsletter_success_msg": "Благодарим ви за абонамента!",
+                "newsletter_error_msg": "Възникна грешка при абонирането. Опитайте отново.",
+                "subscribed_success": "Благодарим ви за абонамента!",
+                "resubscribed_success": "Успяхте да се абонирате отново успешно!",
+                "already_subscribed": "Този имейл адрес вече е абониран за бюлетина.",
+                "invalid_email": "Моля, въведете валиден имейл адрес.",
+                "error_generic": "Възникна грешка при абонирането. Опитайте отново.",
+                "unsubscribe_title": "Отписване от бюлетина",
+                "unsubscribe_confirm_question": "Сигурни ли сте, че искате да се отпишете с имейл адрес:",
+                "unsubscribe_button": "Потвърди отписването",
+                "unsubscribe_success": "Успяхте да се отпишете успешно от бюлетина.",
+                "unsubscribe_error_not_found": "Този имейл адрес не е активен абонат.",
+                "unsubscribe_error_generic": "Възникна грешка при отписването. Опитайте отново.",
+                "btn_back_to_home": "Към началната страница"
             },
 
             "guidelines": {
@@ -232,6 +307,21 @@ const resources = {
                     "fileTooLarge": "Файлът е над 10MB!"
                 }
             },
+            "ratings": {
+                "title": "Оценка на рецептата",
+                "average": "Средна оценка:",
+                "count": "({{count}} гласа)",
+                "yourRating": "Вашата оценка:",
+                "success": "Оценката е записана успешно!"
+            },
+            "comments": {
+                "title": "Коментари",
+                "placeholder": "Напишете вашия коментар тук...",
+                "submit": "Публикувай коментар",
+                "loginRequired": "Трябва да влезете в профила си, за да коментирате.",
+                "noComments": "Все още няма коментари. Бъдете първият, който ще коментира!",
+                "delete": "Изтрий"
+            },
             "common": {
                 "cancel": "Отказ"
             }
@@ -253,9 +343,61 @@ const resources = {
             "alert_login": "The login form will be added soon!",
             "btn_add_recipe": "+ Add Recipe",
             "btn_my_recipes": "📖 My Recipes",
+            "home_featured": "Featured Recipes",
+            "home_popular": "Most Popular",
+            "home_latest": "Latest Recipes",
             "btn_logout": "Logout",
             "btn_delete": "🗑️ Delete",
             "btn_view_more": "View More →",
+            "password_hint": "At least 8 characters.",
+            "registering": "Signing up...",
+            "sending": "Sending...",
+            "show_password": "Show password",
+            "hide_password": "Hide password",
+            "login_failed": "Login failed.",
+            "close": "Close",
+            "verify_email_title": "Account Verification:",
+            "verify_email_body": "Your email address is not verified yet. Please check your inbox.",
+            "verify_email_resend": "Resend Email",
+            "verify_email_sending": "Sending...",
+            "verify_email_resent": "Confirmation email resent successfully!",
+            "subscribe_newsletter_label": "I want to receive new recipes and inspiration via email",
+            "verify_email_resend_error": "An error occurred while sending the email.",
+
+            /* Ключове за футъра на най-горно ниво */
+            "newsletter_title": "Subscribe to our Culinary Newsletter",
+            "newsletter_subtitle": "Get the most delicious new recipes and inspiration delivered directly to your inbox.",
+            "newsletter_placeholder": "Your email address...",
+            "newsletter_button": "Subscribe",
+            "newsletter_submitting": "Submitting...",
+            "newsletter_invalid_email": "Please enter a valid email address.",
+            "newsletter_error_msg": "An error occurred during subscription. Please try again.",
+
+            "all_rights_reserved": "All rights reserved.",
+            "privacy_policy": "Privacy Policy",
+            "terms_of_service": "Terms & Conditions",
+            "culinary_team": "Culinary Team",
+            "danger_zone_title": "Danger Zone",
+            "danger_zone_description": "Once you delete your account, there is no going back. Please be certain.",
+            "delete_account_btn": "Delete Account",
+            "user_already_exists": "A user with this email already exists.",
+            "invalid_credentials": "Invalid email or password.",
+            "missing_confirmation_token": "Missing confirmation token.",
+            "invalid_or_used_confirmation_link": "Invalid or already used confirmation link.",
+            "confirmation_link_expired": "The confirmation link has expired. Please request a new one.",
+            "email_confirmed_successfully": "Email confirmed successfully.",
+            "resend_confirmation_sent": "If the email exists and is unconfirmed, we have sent a new link.",
+            "password_reset_sent": "If the email exists, we have sent a password reset link.",
+            "invalid_or_used_reset_link": "Invalid or already used reset link.",
+            "reset_link_expired": "The link has expired. Please request a new one.",
+            "password_too_short": "Password must be at least 8 characters long.",
+            "password_reset_success": "Password changed successfully. You can now log in.",
+            "verifying_email": "Verifying your email address...",
+            "success_title": "Success!",
+            "error_title": "Error",
+            "please_wait": "Please wait",
+            "back_to_home": "Back to Home",
+            "error_confirming_email": "An error occurred while confirming your email.",
             "category_main": "Main Dishes",
             "category_salads": "Salads",
             "category_desserts": "Desserts",
@@ -308,7 +450,7 @@ const resources = {
             "reg_success_message": "Successful registration! Please check your email for confirmation.",
             "forgot_success_message": "If the email address exists in the system, we have sent recovery instructions.",
             "network_error": "A network error occurred. Please try again.",
-            
+
             "error_loading_my_recipes": "Failed to load your recipes.",
             "error_deleting": "Error deleting recipe.",
             "my_uploaded_recipes": "My Uploaded Recipes",
@@ -328,6 +470,29 @@ const resources = {
                 "allRecipes": "All recipes",
                 "allFromCategory": "All from {{name}}",
                 "admin": "Admin"
+            },
+
+            "newsletter": {
+                "newsletter_title": "Subscribe to our Culinary Newsletter",
+                "newsletter_subtitle": "Get the most delicious new recipes and inspiration delivered directly to your inbox.",
+                "newsletter_placeholder": "Your email address...",
+                "newsletter_button": "Subscribe",
+                "newsletter_submitting": "Submitting...",
+                "newsletter_invalid_email": "Please enter a valid email address.",
+                "newsletter_success_msg": "Thank you for subscribing!",
+                "newsletter_error_msg": "An error occurred during subscription. Please try again.",
+                "subscribed_success": "Thank you for subscribing!",
+                "resubscribed_success": "You have successfully resubscribed!",
+                "already_subscribed": "This email address is already subscribed to the newsletter.",
+                "invalid_email": "Please enter a valid email address.",
+                "error_generic": "An error occurred during subscription. Please try again.",
+                "unsubscribe_title": "Unsubscribe from Newsletter",
+                "unsubscribe_confirm_question": "Are you sure you want to unsubscribe with email address:",
+                "unsubscribe_button": "Confirm Unsubscribe",
+                "unsubscribe_success": "You have successfully unsubscribed from the newsletter.",
+                "unsubscribe_error_not_found": "This email address is not an active subscriber.",
+                "unsubscribe_error_generic": "An error occurred while unsubscribing. Please try again.",
+                "btn_back_to_home": "Back to Home"
             },
 
             "guidelines": {
@@ -466,6 +631,21 @@ const resources = {
                     "fileTooLarge": "File is over 10MB!"
                 }
             },
+            "ratings": {
+                "title": "Recipe Rating",
+                "average": "Average rating:",
+                "count": "({{count}} votes)",
+                "yourRating": "Your rating:",
+                "success": "Rating saved successfully!"
+            },
+            "comments": {
+                "title": "Comments",
+                "placeholder": "Write your comment here...",
+                "submit": "Post Comment",
+                "loginRequired": "You must be logged in to comment.",
+                "noComments": "No comments yet. Be the first to comment!",
+                "delete": "Delete"
+            },
             "common": {
                 "cancel": "Cancel"
             }
@@ -479,7 +659,9 @@ i18n
     .init({
         resources,
         fallbackLng: 'bg',
-        interpolation: { escapeValue: false }
+        interpolation: {
+            escapeValue: false
+        }
     });
 
 export default i18n;

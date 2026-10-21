@@ -28,25 +28,25 @@ export default function HomePage() {
     }, [lang]);
 
     if (loading) {
-        return <p className="loading">{t('loading') || 'Зареждане...'}</p>;
+        return <p className="loading">{t('loading', 'Зареждане...')}</p>;
     }
 
     return (
         <main>
             {featured.length > 0 && (
                 <section className="home-section">
-                    <h2>{t('home_featured') || 'Популярни днес'}</h2>
+                    <h2>{t('home_featured', 'Избрани рецепти')}</h2>
                     <RecipeList recipes={featured} />
                 </section>
             )}
             {popular.length > 0 && (
                 <section className="home-section">
-                    <h2>{t('home_popular') || 'Най-гледани'}</h2>
+                    <h2>{t('home_popular', 'Най-популярни')}</h2>
                     <RecipeList recipes={popular} />
                 </section>
             )}
             <section className="home-section">
-                <h2>{t('home_latest') || 'Новите рецепти'}</h2>
+                <h2>{t('home_latest', 'Последни рецепти')}</h2>
                 <RecipeList recipes={latest} />
             </section>
         </main>

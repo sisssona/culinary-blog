@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using CulinaryBlog.Data;
 using CulinaryBlog.DTOs;
 using CulinaryBlog.Models;
@@ -38,7 +38,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
         if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
-            return BadRequest(new { error = "Потребител с този имейл вече съществува." });
+            return BadRequest(new { error = "user_already_exists" });
 
         var displayName = string.IsNullOrWhiteSpace(dto.DisplayName)
             ? dto.Email.Split('@')[0]
@@ -51,7 +51,8 @@ public class AuthController : ControllerBase
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             EmailConfirmed = false,
             EmailConfirmationToken = GenerateToken(),
-            EmailConfirmationTokenExpiresAt = DateTime.UtcNow.AddDays(2)
+            EmailConfirmationTokenExpiresAt = DateTime.UtcNow.AddDays(2),
+            IsSubscribedToNewsletter = dto.IsSubscribed // Запазваме избора от модала
         };
 
         _context.Users.Add(user);
@@ -70,7 +71,7 @@ public class AuthController : ControllerBase
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
         if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
-            return Unauthorized(new { error = "Невалиден имейл или парола." });
+            return Unauthorized(new { error = "invalid_credentials" });
 
         if (string.IsNullOrWhiteSpace(user.DisplayName))
         {
@@ -87,21 +88,65 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ConfirmEmail([FromQuery] string token)
     {
         if (string.IsNullOrWhiteSpace(token))
-            return BadRequest(new { error = "Липсва токен за потвърждение." });
+            return BadRequest(new { error = "missing_confirmation_token" });
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.EmailConfirmationToken == token);
         if (user == null)
-            return BadRequest(new { error = "Невалиден или вече използван линк за потвърждение." });
+            return BadRequest(new { error = "invalid_or_used_confirmation_link" });
 
         if (user.EmailConfirmationTokenExpiresAt == null || user.EmailConfirmationTokenExpiresAt < DateTime.UtcNow)
-            return BadRequest(new { error = "Линкът за потвърждение е изтекъл. Поискайте нов." });
+            return BadRequest(new { error = "confirmation_link_expired" });
 
         user.EmailConfirmed = true;
         user.EmailConfirmationToken = null;
         user.EmailConfirmationTokenExpiresAt = null;
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Имейлът е потвърден успешно." });
+        // АКО потребителят е избрал да се абонира при регистрация, го активираме в бюлетина ТУК след потвърждение
+        if (user.IsSubscribedToNewsletter)
+        {
+            var existingSubscriber = await _context.NewsletterSubscribers
+                .FirstOrDefaultAsync(s => s.Email.ToLower() == user.Email.ToLower());
+
+            if (existingSubscriber == null)
+            {
+                var subscriber = new NewsletterSubscriber
+                {
+                    Email = user.Email.Trim(),
+                    SubscribedAt = DateTime.UtcNow,
+                    IsActive = true
+                };
+                _context.NewsletterSubscribers.Add(subscriber);
+                await _context.SaveChangesAsync();
+            }
+            else if (!existingSubscriber.IsActive)
+            {
+                existingSubscriber.IsActive = true;
+                await _context.SaveChangesAsync();
+            }
+
+            // Изпращаме приветствен имейл за бюлетина с линк за отписване
+            string unsubscribeLink = $"{(_config["Frontend:BaseUrl"] ?? "http://localhost:5173")}/unsubscribe?email={Uri.EscapeDataString(user.Email)}";
+            string newsletterEmailBody = $@"
+                <div style='font-family: Arial, sans-serif; color: #2c2c2c;'>
+                    <h2>Благодарим ви, че потвърдихте регистрацията си и се абонирахте за нашия кулинарен блог!</h2>
+                    <p>Очаквайте най-вкусните нови рецепти и вдъхновения директно във вашата поща.</p>
+                    <br />
+                    <hr style='border: none; border-top: 1px solid #e3decb;' />
+                    <p style='font-size: 12px; color: #786f65;'>
+                        Ако повече не желаете да получавате имейли от нас, можете да се отпишете по всяко време тук: 
+                        <a href='{unsubscribeLink}' style='color: #b45309;'>Отпиши ме</a>
+                    </p>
+                </div>";
+
+            QueueEmail(email => email.SendEmailAsync(
+                user.Email,
+                "Успешен абонамент за нашия кулинарен блог",
+                newsletterEmailBody
+            ));
+        }
+
+        return Ok(new { message = "email_confirmed_successfully" });
     }
 
     // POST: api/v1/auth/resend-confirmation
@@ -110,8 +155,6 @@ public class AuthController : ControllerBase
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
 
-        // Същият генеричен отговор независимо дали имейлът съществува или вече е потвърден —
-        // за да не разкриваме кои имейли са регистрирани.
         if (user != null && !user.EmailConfirmed)
         {
             user.EmailConfirmationToken = GenerateToken();
@@ -123,7 +166,7 @@ public class AuthController : ControllerBase
             QueueEmail(email => email.SendEmailConfirmationAsync(user.Email, user.DisplayName, confirmUrl));
         }
 
-        return Ok(new { message = "Ако имейлът съществува и не е потвърден, изпратихме нов линк." });
+        return Ok(new { message = "resend_confirmation_sent" });
     }
 
     // POST: api/v1/auth/forgot-password
@@ -132,7 +175,6 @@ public class AuthController : ControllerBase
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
 
-        // Генеричен отговор дори ако имейлът не съществува — не разкриваме кои имейли са регистрирани.
         if (user != null)
         {
             user.PasswordResetToken = GenerateToken();
@@ -144,7 +186,7 @@ public class AuthController : ControllerBase
             QueueEmail(email => email.SendPasswordResetAsync(user.Email, user.DisplayName, resetUrl));
         }
 
-        return Ok(new { message = "Ако имейлът съществува, изпратихме линк за възстановяване на паролата." });
+        return Ok(new { message = "password_reset_sent" });
     }
 
     // POST: api/v1/auth/reset-password
@@ -153,20 +195,20 @@ public class AuthController : ControllerBase
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == dto.Token);
         if (user == null)
-            return BadRequest(new { error = "Невалиден или вече използван линк за възстановяване." });
+            return BadRequest(new { error = "invalid_or_used_reset_link" });
 
         if (user.PasswordResetTokenExpiresAt == null || user.PasswordResetTokenExpiresAt < DateTime.UtcNow)
-            return BadRequest(new { error = "Линкът е изтекъл. Поискайте нов." });
+            return BadRequest(new { error = "reset_link_expired" });
 
         if (string.IsNullOrWhiteSpace(dto.NewPassword) || dto.NewPassword.Length < 8)
-            return BadRequest(new { error = "Паролата трябва да е поне 8 символа." });
+            return BadRequest(new { error = "password_too_short" });
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         user.PasswordResetToken = null;
         user.PasswordResetTokenExpiresAt = null;
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Паролата е сменена успешно. Вече можете да влезете." });
+        return Ok(new { message = "password_reset_success" });
     }
 
     [Authorize]

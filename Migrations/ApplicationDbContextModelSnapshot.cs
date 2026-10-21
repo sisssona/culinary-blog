@@ -167,6 +167,29 @@ namespace CulinaryBlog.Migrations
                     b.ToTable("Likes");
                 });
 
+            modelBuilder.Entity("CulinaryBlog.Models.NewsletterSubscriber", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("SubscribedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NewsletterSubscribers");
+                });
+
             modelBuilder.Entity("CulinaryBlog.Models.Rating", b =>
                 {
                     b.Property<int>("RecipeId")
@@ -481,6 +504,9 @@ namespace CulinaryBlog.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSubscribedToNewsletter")
                         .HasColumnType("boolean");
 
                     b.Property<string>("PasswordHash")

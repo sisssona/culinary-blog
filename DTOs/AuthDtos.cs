@@ -1,11 +1,12 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace CulinaryBlog.Models;
 
 public record RegisterDto(
     [Required][EmailAddress] string Email,
     [Required][MinLength(8)] string Password,
-    string? DisplayName
+    string? DisplayName,
+    bool IsSubscribed
 );
 
 public record LoginDto(

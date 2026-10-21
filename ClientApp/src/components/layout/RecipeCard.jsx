@@ -6,6 +6,9 @@ export default function RecipeCard({ recipe }) {
     const lang = i18n.language || 'bg';
     const tagLabel = (tag) => (lang === 'bg' ? tag.name : (tag.nameEn || tag.name));
 
+    // Проверяваме дали авторът е администраторския екип (поддържаме стари и нови стойности)
+    const isEditorial = ['Редакция', 'Culinary team', 'Culinary Team'].includes(recipe.authorName);
+
     return (
         <div className="recipe-card">
             <Link to={`/recipes/${recipe.id}`} className="recipe-image-wrapper">
@@ -20,8 +23,17 @@ export default function RecipeCard({ recipe }) {
                 <h3 className="recipe-title">{recipe.title}</h3>
 
                 <p className="recipe-category">
-                    📂 {recipe.category || 'Без категория'}
+                    📂 {recipe.category || t('no_category', 'Без категория')}
                 </p>
+
+                {recipe.authorName && (
+                    <p className="recipe-author" style={{ fontSize: '0.85rem', color: '#666', margin: '5px 0' }}>
+                        👨‍🍳 {t('recipe.author_label', 'Автор:')}{' '}
+                        <strong>
+                            {isEditorial ? t('culinary_team', 'Кулинарен екип') : recipe.authorName}
+                        </strong>
+                    </p>
+                )}
 
                 {recipe.description && (
                     <p className="recipe-description">
@@ -46,7 +58,7 @@ export default function RecipeCard({ recipe }) {
                 )}
 
                 <Link to={`/recipes/${recipe.id}`} className="recipe-button">
-                    {t('btn_view_more') || 'Виж повече →'}
+                    {t('btn_view_more', 'Виж повече →')}
                 </Link>
             </div>
         </div>

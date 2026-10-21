@@ -34,7 +34,7 @@ public class ArticlesController : ControllerBase
                 a.ImageUrl,
                 a.CreatedAt,
                 AuthorId = a.AuthorId,
-                AuthorName = a.Author != null ? a.Author.DisplayName : "Редакция"
+                AuthorName = a.Author != null ? a.Author.DisplayName : "Кулинарен екип"
             })
             .ToListAsync();
 
@@ -58,7 +58,7 @@ public class ArticlesController : ControllerBase
             article.ImageUrl,
             article.CreatedAt,
             article.AuthorId,
-            AuthorName = article.Author?.DisplayName ?? "Редакция"
+            AuthorName = article.Author?.DisplayName ?? "Кулинарен екип"
         });
     }
 

@@ -18,6 +18,8 @@ import { ProtectedRoute } from '../ProtectedRoute';
 import AdminCategoriesPage from '../../pages/AdminCategoriesPage';
 import InfoPage from '../../pages/InfoPage';
 import { useAuth } from '../../context/AuthContext';
+import UnsubscribePage from '../../pages/UnsubscribePage';
+import AdminNewsletterPage from '../../pages/AdminNewsletterPage';
 
 import { useState } from 'react';
 
@@ -60,6 +62,14 @@ export default function MainLayout() {
                     <Route element={<ProtectedRoute role="Admin" />}>
                         <Route path="/admin/categories" element={<AdminCategoriesPage />} />
                     </Route>
+                    <Route path="/unsubscribe" element={<UnsubscribePage />} />
+
+                    {/* ADMIN — само за администратори */}
+                    <Route element={<ProtectedRoute role="Admin" />}>
+                        <Route path="/admin/categories" element={<AdminCategoriesPage />} />
+                        <Route path="/admin/newsletter" element={<AdminNewsletterPage />} />
+                    </Route>
+
                 </Routes>
             </main>
 

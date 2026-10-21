@@ -1,4 +1,4 @@
-﻿using CulinaryBlog.Data;
+using CulinaryBlog.Data;
 using CulinaryBlog.Middleware;
 using CulinaryBlog.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -11,9 +11,22 @@ using Microsoft.OpenApi.Models;
 using System.IO;
 using System.Text;
 using System.Text.Json.Serialization;
-using System.Threading.RateLimiting; // Задължително за Rate Limiter
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Динамично извличане на Connection String-а с пълна поддръжка за Docker и Environment Variables
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (string.IsNullOrEmpty(connectionString) || !connectionString.Contains("Password="))
+{
+    // Четем само от защитената среда (Docker env), без твърдо кодирани пароли
+    var pgPassword = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD")
+                     ?? throw new InvalidOperationException("POSTGRES_PASSWORD environment variable is not set.");
+
+    // Използваме 'postgres_db' за вътрешната Docker мрежа и порт '5432'
+    connectionString = $"Host=postgres_db;Port=5432;Database=culinary_blog_db;Username=postgres;Password={pgPassword}";
+}
 
 builder.Services.AddCors(options =>
 {
@@ -39,13 +52,13 @@ builder.Services.Configure<KestrelServerOptions>(options =>
 
 // 2. DbContext (PostgreSQL)
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 // 2.1 Добавяне на Health Checks за базата данни
 builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection") ?? "");
+    .AddNpgSql(connectionString);
 
-// 2.2 Добавяне на Rate Limiting (Защита от спам / претоварване)
+// 2.2 Добавяне на Rate Limiting
 builder.Services.AddRateLimiter(options =>
 {
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
@@ -54,7 +67,7 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = 60, // 60 заявки на минута на IP
+                PermitLimit = 60,
                 QueueLimit = 2,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -83,7 +96,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ClockSkew = TimeSpan.FromSeconds(60) // small allowed skew
+            ClockSkew = TimeSpan.FromSeconds(60)
         };
     });
 
@@ -97,7 +110,10 @@ builder.Services.AddEndpointsApiExplorer();
 // 5. Регистрация на услуги (Services)
 builder.Services.AddHttpClient<TranslationService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
-builder.Services.AddScoped<IAuditLogService, AuditLogService>();  // ✅ ДОБАВЕНО
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+builder.Services.AddHostedService<NewsletterBackgroundService>();
 
 // 6. Swagger Конфигурация
 builder.Services.AddSwaggerGen(c =>
@@ -123,18 +139,11 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-builder.Services.AddScoped<IEmailService, EmailService>();
-
 var app = builder.Build();
 
-// --- ВАЖНО: Подредба на Middleware тръбопровода ---
-
-// 1. Глобален Exception Handler
+// --- Подредба на Middleware тръбопровода ---
 app.UseMiddleware<ExceptionMiddleware>();
 
-
-
-// Обслужване на статични файлове и папка wwwroot (за /uploads/...)
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -158,21 +167,16 @@ if (app.Environment.IsDevelopment())
 
 app.UseRouting();
 
-// Активиране на CORS
 app.UseCors("AllowFrontend");
-
-// Активиране на Rate Limiter (трябва да е след UseRouting и преди UseAuthentication/Endpoints)
 app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-// Мапиране на Health Checks ендпоинта
 app.MapHealthChecks("/health");
 
-// Автоматично прилагане на миграции и сийдване на данни (Пропуска се по време на тестове)
+// Автоматично прилагане на миграции и сийдване
 if (!app.Environment.IsEnvironment("Testing"))
 {
     using (var scope = app.Services.CreateScope())
@@ -185,5 +189,4 @@ if (!app.Environment.IsEnvironment("Testing"))
 
 app.Run();
 
-// Задължително за WebApplicationFactory
 public partial class Program { }

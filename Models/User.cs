@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace CulinaryBlog.Models;
 
@@ -16,6 +16,9 @@ public class User
 
     [MaxLength(500)]
     public string Bio { get; set; } = string.Empty;
+
+    // --- Абонамент за бюлетин ---
+    public bool IsSubscribedToNewsletter { get; set; } = true; // По подразбиране е true, както отбелязахме в модала
 
     // --- Потвърждение на имейл ---
     public bool EmailConfirmed { get; set; } = false;

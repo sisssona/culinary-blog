@@ -10,14 +10,14 @@ export default function LanguageSwitcher() {
                 onClick={() => i18n.changeLanguage('bg')}
                 className={currentLang.startsWith('bg') ? 'active' : ''}
             >
-                🇧🇬 BG
+                 BG
             </button>
 
             <button
                 onClick={() => i18n.changeLanguage('en')}
                 className={currentLang.startsWith('en') ? 'active' : ''}
             >
-                🇬🇧 EN
+                 EN
             </button>
         </div>
     );

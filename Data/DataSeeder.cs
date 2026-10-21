@@ -1,4 +1,4 @@
-﻿using CulinaryBlog.Helpers;
+using CulinaryBlog.Helpers;
 using CulinaryBlog.Models;
 
 namespace CulinaryBlog.Data;
@@ -16,7 +16,7 @@ public static class DataSeeder
             var admin = new User
             {
                 Email = "admin@culinaryblog.com",
-                DisplayName = "Редакция",
+                DisplayName = "Кулинарен екип",
                 Bio = "Екипът на кулинарния блог.",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
                 Role = "Admin",

@@ -1,4 +1,4 @@
-﻿using CulinaryBlog.Models;
+using CulinaryBlog.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace CulinaryBlog.Data;
@@ -20,6 +20,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<RecipeMedia> RecipeMedia => Set<RecipeMedia>();
+    public DbSet<NewsletterSubscriber> NewsletterSubscribers { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
