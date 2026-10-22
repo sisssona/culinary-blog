@@ -6,7 +6,8 @@ public record RegisterDto(
     [Required][EmailAddress] string Email,
     [Required][MinLength(8)] string Password,
     string? DisplayName,
-    bool IsSubscribed
+    bool IsSubscribed,
+    string? PreferredLanguage
 );
 
 public record LoginDto(

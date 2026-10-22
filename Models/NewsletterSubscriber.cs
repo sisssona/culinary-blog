@@ -12,5 +12,8 @@ public class NewsletterSubscriber
 
     public bool IsActive { get; set; } = true;
 
+    [MaxLength(5)]
+    public string PreferredLanguage { get; set; } = "bg";
+
     public DateTime SubscribedAt { get; set; } = DateTime.UtcNow;
 }

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 
 export default function Footer() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'success' | 'error'
@@ -17,8 +17,14 @@ export default function Footer() {
         setStatus('loading');
         setMessage('');
 
+        // Вземаме текущия език ('en' или 'bg')
+        const preferredLanguage = i18n.language?.startsWith('en') ? 'en' : 'bg';
+
         try {
-            const res = await api.post('/newsletter/subscribe', { email });
+            const res = await api.post('/newsletter/subscribe', {
+                email,
+                preferredLanguage
+            });
             const code = res.data?.code;
 
             if (code === 'RESUBSCRIBED_SUCCESS') {
@@ -34,7 +40,6 @@ export default function Footer() {
             const code = errorData?.code;
             const serverMessage = errorData?.message || '';
 
-            // Проверяваме както по код от бекенда, така и по текст в съобщението
             if (code === 'ALREADY_SUBSCRIBED' || serverMessage.includes('вече е абониран')) {
                 setMessage(t('newsletter.already_subscribed', 'Този имейл адрес вече е абониран за бюлетина.'));
             } else if (code === 'INVALID_EMAIL' || serverMessage.includes('валиден имейл')) {

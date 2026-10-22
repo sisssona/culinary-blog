@@ -6,8 +6,18 @@ export default function RecipeCard({ recipe }) {
     const lang = i18n.language || 'bg';
     const tagLabel = (tag) => (lang === 'bg' ? tag.name : (tag.nameEn || tag.name));
 
-    // Проверяваме дали авторът е администраторския екип (поддържаме стари и нови стойности)
-    const isEditorial = ['Редакция', 'Culinary team', 'Culinary Team'].includes(recipe.authorName);
+    // Проверяваме дали авторът е администраторския екип
+    const isEditorial = ['Редакция', 'Culinary team', 'Culinary Team', 'Кулинарен екип'].includes(recipe.authorName);
+
+    // Функция за показване на името на автора според езика, ако е екипът
+    const renderAuthorName = () => {
+        if (isEditorial) {
+            return t('culinary_team', 'Кулинарен екип');
+        }
+
+        // Ако имаме английски вариант на името или искаме да го мапнем при нужда
+        return recipe.authorName;
+    };
 
     return (
         <div className="recipe-card">
@@ -30,7 +40,7 @@ export default function RecipeCard({ recipe }) {
                     <p className="recipe-author" style={{ fontSize: '0.85rem', color: '#666', margin: '5px 0' }}>
                         👨‍🍳 {t('recipe.author_label', 'Автор:')}{' '}
                         <strong>
-                            {isEditorial ? t('culinary_team', 'Кулинарен екип') : recipe.authorName}
+                            {renderAuthorName()}
                         </strong>
                     </p>
                 )}

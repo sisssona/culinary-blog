@@ -188,6 +188,7 @@ const resources = {
             },
 
             "recipe": {
+                "author_label": "Автор:",
                 "addTitle": "Добавяне на нова рецепта",
                 "sections": {
                     "photo": "Снимка",
@@ -512,6 +513,7 @@ const resources = {
             },
 
             "recipe": {
+                "author_label": "Author:",
                 "addTitle": "Add New Recipe",
                 "sections": {
                     "photo": "Photo",

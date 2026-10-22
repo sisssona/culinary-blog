@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../api/axios';
 
 const AuthContext = createContext(null);
@@ -21,6 +22,7 @@ const mapAuth = (data, fallbackEmail) => {
 };
 
 export const AuthProvider = ({ children }) => {
+    const { i18n } = useTranslation();
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(() => localStorage.getItem('token'));
     const [loading, setLoading] = useState(true);
@@ -61,14 +63,32 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async (email, password, displayName) => {
+    const register = async (
+        email,
+        password,
+        displayName,
+        isSubscribed
+    ) => {
         try {
-            const response = await api.post('/auth/register', { email, password, displayName });
+            const preferredLanguage = i18n.language?.startsWith('en') ? 'en' : 'bg';
+
+            const response = await api.post('/auth/register', {
+                email,
+                password,
+                displayName,
+                isSubscribed,
+                preferredLanguage
+            });
+
             return applyAuth(response.data, email);
         } catch (error) {
             const errData = error.response?.data;
-            const msg = errData?.error || 'Този имейл вече е зает или паролата е слаба.';
-            return { success: false, message: typeof msg === 'string' ? msg : 'Грешка при регистрация' };
+            // Показваме реалната грешка от бекенда, ако има такава, вместо общото съобщение
+            const msg = errData?.error || errData?.message || 'Грешка при регистрация';
+            return {
+                success: false,
+                message: typeof msg === 'string' ? msg : 'Грешка при регистрация'
+            };
         }
     };
 

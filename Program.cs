@@ -182,7 +182,7 @@ if (!app.Environment.IsEnvironment("Testing"))
     using (var scope = app.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        context.Database.Migrate();
+        context.Database.EnsureCreated();
         DataSeeder.SeedData(context);
     }
 }

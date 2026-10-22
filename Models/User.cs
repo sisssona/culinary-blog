@@ -17,8 +17,11 @@ public class User
     [MaxLength(500)]
     public string Bio { get; set; } = string.Empty;
 
+    [MaxLength(5)]
+    public string PreferredLanguage { get; set; } = "bg";
+
     // --- Абонамент за бюлетин ---
-    public bool IsSubscribedToNewsletter { get; set; } = true; // По подразбиране е true, както отбелязахме в модала
+    public bool IsSubscribedToNewsletter { get; set; } = true; // По подразбиране е true
 
     // --- Потвърждение на имейл ---
     public bool EmailConfirmed { get; set; } = false;

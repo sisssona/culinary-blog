@@ -90,6 +90,68 @@ public class FileStorageService : IFileStorageService
         );
     }
 
+    /// <summary>
+    /// Stores a video as-is (no transcoding). Only .mp4 and .webm are accepted, and the
+    /// file header must match the extension. The file always gets a random name.
+    /// Returns the public relative URL.
+    /// </summary>
+    public async Task<string> SaveVideoAsync(IFormFile file, string folderName, CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length == 0)
+            throw new ArgumentException("Файлът е празен.", nameof(file));
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (ext != ".mp4" && ext != ".webm")
+            throw new BadHttpRequestException("Позволени са само видео файлове във формат .mp4 или .webm.");
+
+        var header = new byte[12];
+        int read;
+        await using (var probe = file.OpenReadStream())
+        {
+            read = await probe.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, cancellationToken);
+        }
+
+        if (!LooksLikeVideo(header, read, ext))
+            throw new BadHttpRequestException("Файлът не изглежда като валидно видео.");
+
+        var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+        var uploadsFolder = Path.Combine(webRoot, folderName);
+        if (!Directory.Exists(uploadsFolder))
+        {
+            Directory.CreateDirectory(uploadsFolder);
+        }
+
+        var fileName = $"{Guid.NewGuid()}{ext}";
+        var fullPath = Path.Combine(uploadsFolder, fileName);
+
+        try
+        {
+            await using var target = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+            await file.CopyToAsync(target, cancellationToken);
+        }
+        catch
+        {
+            // Do not leave a half-written file behind (e.g. when the request is cancelled).
+            if (File.Exists(fullPath))
+            {
+                try { File.Delete(fullPath); } catch { /* best effort */ }
+            }
+            throw;
+        }
+
+        return $"/{folderName}/{fileName}";
+    }
+
+    private static bool LooksLikeVideo(byte[] header, int read, string ext)
+    {
+        // MP4: bytes 4..7 are "ftyp". WebM: EBML header 1A 45 DF A3.
+        if (ext == ".mp4")
+            return read >= 12 && header[4] == (byte)'f' && header[5] == (byte)'t' && header[6] == (byte)'y' && header[7] == (byte)'p';
+        if (ext == ".webm")
+            return read >= 4 && header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3;
+        return false;
+    }
+
     public void DeleteFile(string? relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath))

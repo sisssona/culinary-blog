@@ -108,7 +108,10 @@ export default function Navigation() {
                 })}
 
                 {isAdmin && (
-                    <Link to="/admin/categories" className="admin-link">{t('nav.admin')}</Link>
+                    <>
+                        <Link to="/admin/categories" className="admin-link">{t('admin_categories_nav', 'Категории')}</Link>
+                        <Link to="/admin/newsletter" className="admin-link">{t('admin_newsletter_nav', 'Бюлетин')}</Link>
+                    </>
                 )}
             </nav>
         </div>

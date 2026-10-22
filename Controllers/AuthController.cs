@@ -52,7 +52,8 @@ public class AuthController : ControllerBase
             EmailConfirmed = false,
             EmailConfirmationToken = GenerateToken(),
             EmailConfirmationTokenExpiresAt = DateTime.UtcNow.AddDays(2),
-            IsSubscribedToNewsletter = dto.IsSubscribed // Запазваме избора от модала
+            IsSubscribedToNewsletter = dto.IsSubscribed,
+            PreferredLanguage = !string.IsNullOrWhiteSpace(dto.PreferredLanguage) ? dto.PreferredLanguage : "bg"
         };
 
         _context.Users.Add(user);
@@ -60,7 +61,7 @@ public class AuthController : ControllerBase
 
         var frontendBaseUrl = _config["Frontend:BaseUrl"] ?? "http://localhost:5173";
         var confirmUrl = $"{frontendBaseUrl}/confirm-email?token={user.EmailConfirmationToken}";
-        QueueEmail(email => email.SendEmailConfirmationAsync(user.Email, user.DisplayName, confirmUrl));
+        QueueEmail(email => email.SendEmailConfirmationAsync(user.Email, user.DisplayName, confirmUrl, user.PreferredLanguage));
 
         var token = GenerateJwtToken(user);
         return Ok(ToAuthResponse(user, token));
@@ -102,6 +103,8 @@ public class AuthController : ControllerBase
         user.EmailConfirmationTokenExpiresAt = null;
         await _context.SaveChangesAsync();
 
+        var frontendBaseUrl = _config["Frontend:BaseUrl"] ?? "http://localhost:5173";
+
         // АКО потребителят е избрал да се абонира при регистрация, го активираме в бюлетина ТУК след потвърждение
         if (user.IsSubscribedToNewsletter)
         {
@@ -114,7 +117,8 @@ public class AuthController : ControllerBase
                 {
                     Email = user.Email.Trim(),
                     SubscribedAt = DateTime.UtcNow,
-                    IsActive = true
+                    IsActive = true,
+                    PreferredLanguage = user.PreferredLanguage
                 };
                 _context.NewsletterSubscribers.Add(subscriber);
                 await _context.SaveChangesAsync();
@@ -122,26 +126,32 @@ public class AuthController : ControllerBase
             else if (!existingSubscriber.IsActive)
             {
                 existingSubscriber.IsActive = true;
+                existingSubscriber.PreferredLanguage = user.PreferredLanguage;
                 await _context.SaveChangesAsync();
             }
 
-            // Изпращаме приветствен имейл за бюлетина с линк за отписване
-            string unsubscribeLink = $"{(_config["Frontend:BaseUrl"] ?? "http://localhost:5173")}/unsubscribe?email={Uri.EscapeDataString(user.Email)}";
+            // Динамични текстове спрямо езика на потребителя
+            string lang = user.PreferredLanguage ?? "bg";
+            var texts = EmailTemplates.GetNewsletterTexts(lang);
+
+            string unsubscribeLink = $"{frontendBaseUrl}/unsubscribe?email={Uri.EscapeDataString(user.Email)}";
             string newsletterEmailBody = $@"
-                <div style='font-family: Arial, sans-serif; color: #2c2c2c;'>
-                    <h2>Благодарим ви, че потвърдихте регистрацията си и се абонирахте за нашия кулинарен блог!</h2>
-                    <p>Очаквайте най-вкусните нови рецепти и вдъхновения директно във вашата поща.</p>
+                <div style='font-family: Arial, sans-serif; color: #2c2c2c; max-width: 600px; margin: 0 auto; background-color: #f7f4ed; padding: 30px; border-radius: 8px;'>
+                    <h2 style='color: #1a1a1a;'>{texts.Title}</h2>
+                    <p>{texts.Greeting}</p>
+                    <br />
+                    <p>{(lang == "en" ? "Thank you for confirming your registration and subscribing to our culinary blog!" : "Благодарим ви, че потвърдихте регистрацията си и се абонирахте за нашия кулинарен блог!")}</p>
                     <br />
                     <hr style='border: none; border-top: 1px solid #e3decb;' />
                     <p style='font-size: 12px; color: #786f65;'>
-                        Ако повече не желаете да получавате имейли от нас, можете да се отпишете по всяко време тук: 
-                        <a href='{unsubscribeLink}' style='color: #b45309;'>Отпиши ме</a>
+                        {texts.Unsubscribe} 
+                        <a href='{unsubscribeLink}' style='color: #b45309;'>{(lang == "en" ? "Unsubscribe" : "Отпиши ме")}</a>
                     </p>
                 </div>";
 
             QueueEmail(email => email.SendEmailAsync(
                 user.Email,
-                "Успешен абонамент за нашия кулинарен блог",
+                texts.Subject,
                 newsletterEmailBody
             ));
         }
@@ -163,7 +173,7 @@ public class AuthController : ControllerBase
 
             var frontendBaseUrl = _config["Frontend:BaseUrl"] ?? "http://localhost:5173";
             var confirmUrl = $"{frontendBaseUrl}/confirm-email?token={user.EmailConfirmationToken}";
-            QueueEmail(email => email.SendEmailConfirmationAsync(user.Email, user.DisplayName, confirmUrl));
+            QueueEmail(email => email.SendEmailConfirmationAsync(user.Email, user.DisplayName, confirmUrl, user.PreferredLanguage));
         }
 
         return Ok(new { message = "resend_confirmation_sent" });

@@ -21,6 +21,7 @@ public static class DataSeeder
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
                 Role = "Admin",
                 EmailConfirmed = true,
+                PreferredLanguage = "bg",
                 CreatedAt = DateTime.UtcNow
             };
             var cook = new User
@@ -31,6 +32,7 @@ public static class DataSeeder
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Cook123!"),
                 Role = "User",
                 EmailConfirmed = true,
+                PreferredLanguage = "bg",
                 CreatedAt = DateTime.UtcNow
             };
             context.Users.AddRange(admin, cook);

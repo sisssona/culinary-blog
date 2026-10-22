@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.Json;
 using CulinaryBlog.Data;
 using CulinaryBlog.DTOs;
@@ -698,26 +698,33 @@ public class RecipesController : ControllerBase
 
     private async Task AddEnglishTranslationAsync(Recipe recipe, CancellationToken cancellationToken)
     {
-        string titleEn = await _translationService.TranslateAsync(recipe.Title, "en", "bg", cancellationToken);
-        string ingredientsEn = await _translationService.TranslateAsync(recipe.Ingredients, "en", "bg", cancellationToken);
-        string instructionsEn = await _translationService.TranslateAsync(recipe.Instructions, "en", "bg", cancellationToken);
+        try
+        {
+            string titleEn = await _translationService.TranslateAsync(recipe.Title, "en", "bg", cancellationToken);
+            string ingredientsEn = await _translationService.TranslateAsync(recipe.Ingredients, "en", "bg", cancellationToken);
+            string instructionsEn = await _translationService.TranslateAsync(recipe.Instructions, "en", "bg", cancellationToken);
 
-        var enTranslation = recipe.Translations.FirstOrDefault(t => t.Language.ToLower() == "en");
-        if (enTranslation != null)
-        {
-            enTranslation.Title = titleEn;
-            enTranslation.Ingredients = ingredientsEn;
-            enTranslation.Instructions = instructionsEn;
-        }
-        else
-        {
-            recipe.Translations.Add(new RecipeTranslation
+            var enTranslation = recipe.Translations.FirstOrDefault(t => t.Language.ToLower() == "en");
+            if (enTranslation != null)
             {
-                Language = "en",
-                Title = titleEn,
-                Ingredients = ingredientsEn,
-                Instructions = instructionsEn
-            });
+                enTranslation.Title = titleEn;
+                enTranslation.Ingredients = ingredientsEn;
+                enTranslation.Instructions = instructionsEn;
+            }
+            else
+            {
+                recipe.Translations.Add(new RecipeTranslation
+                {
+                    Language = "en",
+                    Title = titleEn,
+                    Ingredients = ingredientsEn,
+                    Instructions = instructionsEn
+                });
+            }
+        }
+        catch
+        {
+            // Предотвратяваме срив на приложението, ако услугата за превод е недостъпна
         }
     }
 
