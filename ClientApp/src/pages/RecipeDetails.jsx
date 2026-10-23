@@ -9,7 +9,7 @@ export default function RecipeDetails() {
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
     const lang = i18n.language || 'bg';
-    const { token, user } = useAuth();
+    const { token, user, isAdmin } = useAuth();
 
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -72,9 +72,19 @@ export default function RecipeDetails() {
         }
     };
 
+    const handleDeleteComment = async (commentId) => {
+        if (!window.confirm('Сигурни ли сте, че искате да изтриете този коментар?')) return;
+
+        try {
+            await api.delete(`/recipes/comments/${commentId}`);
+            setComments(comments.filter(c => c.id !== commentId));
+        } catch {
+            alert('Грешка при изтриване на коментара.');
+        }
+    };
+
     const handleRatingChange = async (value) => {
         try {
-            // Коригиран път от /ratings на /rate (плюс правилния API префикс v1)
             const res = await api.post(`/recipes/${id}/rate`, { value });
             setUserRating(value);
             setAvgRating(res.data.ratingAverage);
@@ -91,6 +101,9 @@ export default function RecipeDetails() {
         return imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
     };
 
+    // Проверка дали текущият потребител е администратор или автор на рецептата
+    const canManage = user && recipe && (isAdmin || recipe.authorId === user.id);
+
     if (loading) return <p className="loading">{t('loading') || 'Зареждане на рецепти...'}</p>;
     if (error) return <p className="error">{error}</p>;
     if (!recipe) return <p className="error">{t('recipe_not_found') || 'Рецептата не е намерена.'}</p>;
@@ -101,12 +114,40 @@ export default function RecipeDetails() {
             <div className="recipe-details-header">
                 <Link to="/" className="back-link">{t('back_to_all') || '← Обратно към всички рецепти'}</Link>
 
-                {token && (
-                    <div className="recipe-actions">
-                        <button onClick={() => navigate(`/recipes/${id}/edit`)} className="btn edit">
+                {canManage && (
+                    <div className="recipe-actions" style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => navigate(`/recipes/${id}/edit`)}
+                            style={{
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                border: '1px solid #bfdbfe',
+                                padding: '8px 14px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                            }}
+                        >
                             ✏️ {t('edit') || 'Редактирай'}
                         </button>
-                        <button onClick={handleDelete} className="btn delete">
+                        <button
+                            onClick={handleDelete}
+                            style={{
+                                background: '#fee2e2',
+                                color: '#b91c1c',
+                                border: '1px solid #f87171',
+                                padding: '8px 14px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                            }}
+                        >
                             🗑️ {t('delete') || 'Изтрий'}
                         </button>
                     </div>
@@ -124,9 +165,6 @@ export default function RecipeDetails() {
                     <span>📅 {new Date(recipe.createdAt).toLocaleDateString()}</span>
                 )}
             </div>
-            <p className="recipe-category">
-                {t('category') || 'Категория'}: <strong>{recipe.category}</strong>
-            </p>
 
             {recipe.tags && recipe.tags.length > 0 && (
                 <div className="recipe-tags recipe-tags-details">
@@ -217,17 +255,39 @@ export default function RecipeDetails() {
                     {comments.length === 0 ? (
                         <p style={{ color: 'var(--text, #666)' }}>{t('comments.noComments', 'Все още няма коментари. Бъдете първият, който ще коментира!')}</p>
                     ) : (
-                        comments.map((comment) => (
-                            <div key={comment.id} className="comment-item" style={{ borderBottom: '1px solid var(--border, #eee)', padding: '12px 0' }}>
-                                <div style={{ fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '4px', color: 'var(--text-h, #222)' }}>
-                                    {comment.user?.displayName || 'Потребител'}
-                                    <span style={{ fontWeight: 'normal', fontSize: '0.75rem', color: '#888', marginLeft: '10px' }}>
-                                        {new Date(comment.createdAt).toLocaleDateString()}
-                                    </span>
+                        comments.map((comment) => {
+                            const canDeleteComment = user && (isAdmin || comment.userId === user.id);
+                            return (
+                                <div key={comment.id} className="comment-item" style={{ borderBottom: '1px solid var(--border, #eee)', padding: '12px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '4px', color: 'var(--text-h, #222)' }}>
+                                            {comment.authorName || 'Потребител'}
+                                            <span style={{ fontWeight: 'normal', fontSize: '0.75rem', color: '#888', marginLeft: '10px' }}>
+                                                {new Date(comment.createdAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-h, #222)' }}>{comment.content}</p>
+                                    </div>
+                                    {canDeleteComment && (
+                                        <button
+                                            onClick={() => handleDeleteComment(comment.id)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: '#dc2626',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                padding: '4px 8px',
+                                                fontWeight: '500'
+                                            }}
+                                            title="Изтрий коментара"
+                                        >
+                                            🗑️ Изтрий
+                                        </button>
+                                    )}
                                 </div>
-                                <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-h, #222)' }}>{comment.content}</p>
-                            </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             </section>

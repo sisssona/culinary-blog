@@ -76,11 +76,12 @@ public class CategoriesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] CategoryDto dto)
     {
+        var sourceText = !string.IsNullOrWhiteSpace(dto.NameEn) ? dto.NameEn : dto.Name;
         var category = new Category
         {
             Name = dto.Name,
             NameEn = dto.NameEn,
-            Slug = SlugHelper.GenerateSlug(dto.NameEn ?? dto.Name),
+            Slug = SlugHelper.GenerateSlug(sourceText),
             SortOrder = dto.SortOrder,
             ParentCategoryId = dto.ParentCategoryId
         };
@@ -104,9 +105,10 @@ public class CategoriesController : ControllerBase
         category.SortOrder = dto.SortOrder;
         category.ParentCategoryId = dto.ParentCategoryId;
 
-        if (!string.IsNullOrWhiteSpace(dto.NameEn || dto.Name))
+        var sourceText = !string.IsNullOrWhiteSpace(dto.NameEn) ? dto.NameEn : dto.Name;
+        if (!string.IsNullOrWhiteSpace(sourceText))
         {
-            category.Slug = SlugHelper.GenerateSlug(dto.NameEn ?? dto.Name);
+            category.Slug = SlugHelper.GenerateSlug(sourceText);
         }
 
         await _context.SaveChangesAsync();
