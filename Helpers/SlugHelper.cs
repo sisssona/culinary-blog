@@ -8,12 +8,36 @@ public static class SlugHelper
 {
     private static readonly Dictionary<char, string> Bulgarian = new()
     {
-        ['а'] = "a", ['б'] = "b", ['в'] = "v", ['г'] = "g", ['д'] = "d",
-        ['е'] = "e", ['ж'] = "zh", ['з'] = "z", ['и'] = "i", ['й'] = "y",
-        ['к'] = "k", ['л'] = "l", ['м'] = "m", ['н'] = "n", ['о'] = "o",
-        ['п'] = "p", ['р'] = "r", ['с'] = "s", ['т'] = "t", ['у'] = "u",
-        ['ф'] = "f", ['х'] = "h", ['ц'] = "ts", ['ч'] = "ch", ['ш'] = "sh",
-        ['щ'] = "sht", ['ъ'] = "a", ['ь'] = "", ['ю'] = "yu", ['я'] = "ya"
+        ['а'] = "a",
+        ['б'] = "b",
+        ['в'] = "v",
+        ['г'] = "g",
+        ['д'] = "d",
+        ['е'] = "e",
+        ['ж'] = "zh",
+        ['з'] = "z",
+        ['и'] = "i",
+        ['й'] = "y",
+        ['к'] = "k",
+        ['л'] = "l",
+        ['м'] = "m",
+        ['н'] = "n",
+        ['о'] = "o",
+        ['п'] = "p",
+        ['р'] = "r",
+        ['с'] = "s",
+        ['т'] = "t",
+        ['у'] = "u",
+        ['ф'] = "f",
+        ['х'] = "h",
+        ['ц'] = "ts",
+        ['ч'] = "ch",
+        ['ш'] = "sh",
+        ['щ'] = "sht",
+        ['ъ'] = "a",
+        ['ь'] = "",
+        ['ю'] = "yu",
+        ['я'] = "ya"
     };
 
     public static string Slugify(string text)
@@ -35,6 +59,9 @@ public static class SlugHelper
         var slug = Regex.Replace(sb.ToString(), "-+", "-").Trim('-');
         return string.IsNullOrEmpty(slug) ? "item" : slug;
     }
+
+    // Добавен метод като алиас, за да работи навсякъде, където се търси GenerateSlug
+    public static string GenerateSlug(string text) => Slugify(text);
 
     public static string Unique(string baseSlug, Func<string, bool> exists)
     {

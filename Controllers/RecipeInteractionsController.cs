@@ -84,6 +84,29 @@ public class RecipeInteractionsController : ControllerBase
         });
     }
 
+    // НОВ МЕТОД ЗА ИЗТРИВАНЕ НА КОМЕНТАР
+    [Authorize]
+    [HttpDelete("comments/{commentId:int}")]
+    public async Task<IActionResult> DeleteComment(int commentId)
+    {
+        if (!TryGetUserId(out var userId))
+            return Unauthorized();
+
+        var comment = await _context.Comments.FindAsync(commentId);
+        if (comment == null)
+            return NotFound(new { error = "Коментарът не е намерен." });
+
+        // Проверяваме дали потребителят е администратор или е автор на самия коментар
+        var isAdmin = User.IsInRole("Admin");
+        if (!isAdmin && comment.UserId != userId)
+            return Forbid();
+
+        _context.Comments.Remove(comment);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Коментарът беше изтрит успешно." });
+    }
+
     [Authorize]
     [HttpPost("{recipeId:int}/like")]
     public async Task<IActionResult> ToggleLike(int recipeId)
