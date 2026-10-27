@@ -5,39 +5,12 @@ namespace CulinaryBlog.Data;
 
 public static class DataSeeder
 {
-    public static void SeedData(ApplicationDbContext context)
+    public static void SeedData(ApplicationDbContext context, IConfiguration configuration)
     {
         SeedCategories(context);
         SeedCategoryTree(context);
         SeedTags(context);
-
-        if (!context.Users.Any())
-        {
-            var admin = new User
-            {
-                Email = "admin@culinaryblog.com",
-                DisplayName = "Кулинарен екип",
-                Bio = "Екипът на кулинарния блог.",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
-                Role = "Admin",
-                EmailConfirmed = true,
-                PreferredLanguage = "bg",
-                CreatedAt = DateTime.UtcNow
-            };
-            var cook = new User
-            {
-                Email = "iva@culinaryblog.com",
-                DisplayName = "Ива Петрова",
-                Bio = "Домашна кухня, сезонни салати и яхнии.",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Cook123!"),
-                Role = "User",
-                EmailConfirmed = true,
-                PreferredLanguage = "bg",
-                CreatedAt = DateTime.UtcNow
-            };
-            context.Users.AddRange(admin, cook);
-            context.SaveChanges();
-        }
+        SeedUsers(context, configuration);
 
         foreach (var user in context.Users.Where(u => string.IsNullOrWhiteSpace(u.DisplayName)))
         {
@@ -145,7 +118,7 @@ public static class DataSeeder
                 },
                 new Article
                 {
-                    Title = "Домашен хляб без millи за тесто",
+                    Title = "Домашен хляб без месене за тесто",
                     Slug = "domashen-hlyab-bez-mili",
                     Excerpt = "Рецепта с малко месене и дълга ферментация.",
                     Body = "Смесете брашно, вода, сол и мая. Оставете тестото да втаса бавно в хладилник. Печете в гореща тенджера с капак за хрупкава кора.",
@@ -154,6 +127,85 @@ public static class DataSeeder
                 }
             );
             context.SaveChanges();
+        }
+
+        var bread = context.Articles.FirstOrDefault(a => a.Slug == "domashen-hlyab-bez-mili");
+        if (bread != null && bread.Title.Contains("mill", StringComparison.Ordinal))
+        {
+            bread.Title = "Домашен хляб без месене за тесто";
+            context.SaveChanges();
+        }
+    }
+
+    private static void SeedUsers(ApplicationDbContext context, IConfiguration configuration)
+    {
+        var adminPassword = configuration["Seed:AdminPassword"];
+        var cookPassword = configuration["Seed:CookPassword"];
+
+        if (!context.Users.Any())
+        {
+            if (string.IsNullOrWhiteSpace(adminPassword) || string.IsNullOrWhiteSpace(cookPassword))
+                return;
+
+            context.Users.AddRange(
+                NewUser("admin@culinaryblog.com", "Кулинарен екип", "Екипът на кулинарния блог.", adminPassword, "Admin"),
+                NewUser("iva@culinaryblog.com", "Ива Петрова", "Домашна кухня, сезонни салати и яхнии.", cookPassword, "User"));
+            context.SaveChanges();
+            return;
+        }
+
+        ReplaceRetiredPassword(context, "admin@culinaryblog.com", adminPassword);
+        ReplaceRetiredPassword(context, "iva@culinaryblog.com", cookPassword);
+        context.SaveChanges();
+    }
+
+    private static User NewUser(string email, string displayName, string bio, string password, string role) => new()
+    {
+        Email = email,
+        DisplayName = displayName,
+        Bio = bio,
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+        Role = role,
+        EmailConfirmed = true,
+        PreferredLanguage = "bg",
+        CreatedAt = DateTime.UtcNow
+    };
+
+    /// <summary>
+    /// Replaces a hash that still matches a retired built-in password.
+    /// The retired values are only used for this check and are never stored again.
+    /// </summary>
+    private static void ReplaceRetiredPassword(ApplicationDbContext context, string email, string? nextPassword)
+    {
+        if (string.IsNullOrWhiteSpace(nextPassword))
+            return;
+
+        var user = context.Users.FirstOrDefault(u => u.Email == email);
+        if (user == null)
+            return;
+
+        var stillUsesRetiredPassword = email switch
+        {
+            "admin@culinaryblog.com" => HashMatches(user.PasswordHash, "Admin123!"),
+            "iva@culinaryblog.com" => HashMatches(user.PasswordHash, "Cook123!"),
+            _ => false
+        };
+
+        if (!stillUsesRetiredPassword)
+            return;
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(nextPassword);
+    }
+
+    private static bool HashMatches(string hash, string password)
+    {
+        try
+        {
+            return BCrypt.Net.BCrypt.Verify(password, hash);
+        }
+        catch (Exception)
+        {
+            return false;
         }
     }
 

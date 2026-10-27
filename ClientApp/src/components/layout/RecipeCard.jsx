@@ -22,11 +22,11 @@ export default function RecipeCard({ recipe }) {
     return (
         <div className="recipe-card">
             <Link to={`/recipes/${recipe.id}`} className="recipe-image-wrapper">
-                <img
-                    src={recipe.thumbnailUrl || recipe.imageUrl || '/default-recipe.jpg'}
-                    alt={recipe.title}
-                    className="recipe-image"
-                />
+                {recipe.imageUrl || recipe.thumbnailUrl ? (
+                    <img src={recipe.imageUrl || recipe.thumbnailUrl} alt="" className="recipe-image" />
+                ) : (
+                    <div className="recipe-image recipe-image-empty" aria-hidden="true">🍽</div>
+                )}
             </Link>
 
             <div className="recipe-content">
@@ -39,9 +39,13 @@ export default function RecipeCard({ recipe }) {
                 {recipe.authorName && (
                     <p className="recipe-author" style={{ fontSize: '0.85rem', color: '#666', margin: '5px 0' }}>
                         👨‍🍳 {t('recipe.author_label', 'Автор:')}{' '}
-                        <strong>
-                            {renderAuthorName()}
-                        </strong>
+                        {recipe.authorId ? (
+                            <Link to={`/cooks/${recipe.authorId}`} onClick={(e) => e.stopPropagation()}>
+                                <strong>{renderAuthorName()}</strong>
+                            </Link>
+                        ) : (
+                            <strong>{renderAuthorName()}</strong>
+                        )}
                     </p>
                 )}
 

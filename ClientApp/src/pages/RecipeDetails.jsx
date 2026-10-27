@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
+import { localized } from '../utils/localizedText';
 
 export default function RecipeDetails() {
     const { id } = useParams();
@@ -12,6 +13,7 @@ export default function RecipeDetails() {
     const { token, user, isAdmin } = useAuth();
 
     const [recipe, setRecipe] = useState(null);
+    const [activePhoto, setActivePhoto] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -24,11 +26,17 @@ export default function RecipeDetails() {
 
     useEffect(() => {
         setLoading(true);
-        api.get(`/recipes/${id}`, { params: { lang } })
-            .then((res) => {
+        Promise.all([
+            api.get(`/recipes/${id}`, { params: { lang } }),
+            api.get(`/recipes/${id}/comments`).catch(() => ({ data: [] }))
+        ])
+            .then(([res, commentsRes]) => {
                 const data = res.data;
                 setRecipe(data);
-                setComments(data.comments || []);
+                const gallery = (data.media || []).filter((item) => item.mediaType === 'image' && item.state === 'ready' && item.url);
+                const coverAt = gallery.findIndex((item) => item.isPrimary || item.url === data.imageUrl);
+                setActivePhoto(coverAt >= 0 ? coverAt : 0);
+                setComments(Array.isArray(commentsRes.data) ? commentsRes.data : []);
 
                 // Изчисляване на средна оценка и брой гласове
                 if (data.ratings && data.ratings.length > 0) {
@@ -48,6 +56,20 @@ export default function RecipeDetails() {
             .finally(() => setLoading(false));
     }, [id, lang, t, user]);
 
+    const videoWaiting = recipe?.media?.some((item) => item.mediaType === 'video' && item.state === 'processing');
+
+    useEffect(() => {
+        if (!videoWaiting) return undefined;
+        const timer = setInterval(() => {
+            api.get(`/recipes/${id}`, { params: { lang } })
+                .then((res) => {
+                    setRecipe((prev) => (prev ? { ...prev, media: res.data.media } : prev));
+                })
+                .catch(() => {});
+        }, 5000);
+        return () => clearInterval(timer);
+    }, [videoWaiting, id, lang]);
+
     const handleDelete = async () => {
         if (!window.confirm(t('confirm_delete') || 'Сигурни ли сте, че искате да изтриете тази рецепта?')) return;
 
@@ -65,7 +87,7 @@ export default function RecipeDetails() {
 
         try {
             const res = await api.post(`/recipes/${id}/comments`, { content: newComment });
-            setComments([...comments, res.data]);
+            setComments([res.data, ...comments]);
             setNewComment('');
         } catch {
             alert(t('error_posting_comment') || 'Грешка при изпращане на коментара.');
@@ -159,7 +181,13 @@ export default function RecipeDetails() {
             <div className="recipe-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'center', color: 'var(--text, #666)', fontSize: '0.9rem', marginBottom: '15px' }}>
                 <span>📂 {recipe.category}</span>
                 {recipe.authorName && (
-                    <span>👨‍🍳 {t('recipe.author_label', 'Автор:')} <strong>{recipe.authorName}</strong></span>
+                    <span>👨‍🍳 {t('recipe.author_label', 'Автор:')}{' '}
+                        {recipe.authorId ? (
+                            <Link to={`/cooks/${recipe.authorId}`}><strong>{recipe.authorName}</strong></Link>
+                        ) : (
+                            <strong>{recipe.authorName}</strong>
+                        )}
+                    </span>
                 )}
                 {recipe.createdAt && (
                     <span>📅 {new Date(recipe.createdAt).toLocaleDateString()}</span>
@@ -176,12 +204,55 @@ export default function RecipeDetails() {
                 </div>
             )}
 
-            {recipe.imageUrl && (
-                <img
-                    src={getImageUrl(recipe.imageUrl)}
-                    alt={recipe.title}
-                    className="recipe-image"
-                />
+            {(() => {
+                const gallery = (recipe.media || []).filter((item) => item.mediaType === 'image' && item.state === 'ready' && item.url);
+                const photos = gallery.length > 0
+                    ? gallery
+                    : (recipe.imageUrl ? [{ id: 'cover', url: recipe.imageUrl, isPrimary: true }] : []);
+                if (photos.length === 0) return null;
+                const current = photos[Math.min(activePhoto, photos.length - 1)];
+                return (
+                    <div className="recipe-gallery">
+                        <img src={getImageUrl(current.url)} alt={recipe.title} className="recipe-image" />
+                        {photos.length > 1 && (
+                            <div className="recipe-gallery-thumbs">
+                                {photos.map((photo, index) => (
+                                    <button
+                                        key={photo.id || index}
+                                        type="button"
+                                        className={index === Math.min(activePhoto, photos.length - 1) ? 'is-active' : ''}
+                                        onClick={() => setActivePhoto(index)}
+                                    >
+                                        <img src={getImageUrl(photo.thumbnailUrl || photo.url)} alt="" />
+                                        {(photo.isPrimary || photo.url === recipe.imageUrl) && <span>{t('recipe_photos_cover')}</span>}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
+
+            {recipe.media?.some((item) => item.mediaType === 'video') && (
+                <section className="recipe-section">
+                    <h3>{t('recipe_video_label', 'Видео')}</h3>
+                    {recipe.media.filter((item) => item.mediaType === 'video' && item.state === 'ready').map((item) => (
+                        <video
+                            key={item.id}
+                            className="recipe-video"
+                            controls
+                            playsInline
+                            poster={item.thumbnailUrl ? getImageUrl(item.thumbnailUrl) : undefined}
+                            src={getImageUrl(item.url)}
+                        />
+                    ))}
+                    {recipe.media.some((item) => item.mediaType === 'video' && item.state === 'processing') && (
+                        <p>{t('recipe_video_processing')}</p>
+                    )}
+                    {recipe.media.some((item) => item.mediaType === 'video' && item.state === 'failed') && (
+                        <p>{t('recipe_video_failed')}</p>
+                    )}
+                </section>
             )}
 
             <section className="recipe-section">
@@ -266,7 +337,7 @@ export default function RecipeDetails() {
                                                 {new Date(comment.createdAt).toLocaleDateString()}
                                             </span>
                                         </div>
-                                        <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-h, #222)' }}>{comment.content}</p>
+                                        <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-h, #222)' }}>{localized(lang, comment.content, comment.contentEn)}</p>
                                     </div>
                                     {canDeleteComment && (
                                         <button

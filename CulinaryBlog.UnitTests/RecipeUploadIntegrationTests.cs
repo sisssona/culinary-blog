@@ -190,10 +190,9 @@ namespace CulinaryBlog.UnitTests
         }
 
         [Fact]
-        public async Task UploadRecipe_WithTooFewTags_ShouldReturn400()
+        public async Task UploadRecipe_WithTooManyTags_ShouldReturn400()
         {
-            var ids = await TagIdsAsync();
-            using var formData = await CreateRecipeFormAsync("Малко тагове", "Супи", tagsJson: $"[{ids[0]}]");
+            using var formData = await CreateRecipeFormAsync("Много тагове", "Супи", tagsJson: "[1,2,3,4]");
             var response = await _client.PostAsync("/api/v1/recipes", formData);
             var body = await response.Content.ReadAsStringAsync();
 

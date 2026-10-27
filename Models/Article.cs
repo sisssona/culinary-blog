@@ -11,6 +11,9 @@ public class Article
     [MaxLength(220)]
     public string Title { get; set; } = string.Empty;
 
+    [MaxLength(220)]
+    public string? TitleEn { get; set; }
+
     [Required]
     [MaxLength(220)]
     public string Slug { get; set; } = string.Empty;
@@ -18,8 +21,14 @@ public class Article
     [MaxLength(400)]
     public string Excerpt { get; set; } = string.Empty;
 
+    [MaxLength(400)]
+    public string? ExcerptEn { get; set; }
+
     [Column(TypeName = "text")]
     public string Body { get; set; } = string.Empty;
+
+    [Column(TypeName = "text")]
+    public string? BodyEn { get; set; }
 
     public string? ImageUrl { get; set; }
 

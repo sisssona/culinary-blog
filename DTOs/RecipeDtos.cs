@@ -28,10 +28,14 @@ public class CreateRecipeDto
     public bool IsFeatured { get; set; }
     public bool AgreedToTerms { get; set; }
 
-    [AllowedExtensions(".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".avif", ".gif")]
+    [AllowedExtensions(".jpg", ".jpeg", ".jfif", ".png", ".webp", ".heic", ".heif", ".avif", ".gif")]
     public IFormFile? ImageFile { get; set; }
 
     public List<IFormFile>? Images { get; set; }
+    public int CoverIndex { get; set; } = -1;
+    public int CoverMediaId { get; set; }
+    public List<int>? RemoveMediaIds { get; set; }
+    public bool RemoveLegacyCover { get; set; }
     public List<IFormFile>? Videos { get; set; }
     public bool PublishWithoutImage { get; set; } = true; // optional policy flag
 }
@@ -42,6 +46,7 @@ public class RecipeUpdateDto : CreateRecipeDto
 
 public record IngredientLineDto(string Amount, string Name);
 public record StepLineDto(int SortOrder, string Text, string? ImageUrl);
+public record RecipeMediaDto(int Id, string Url, string? ThumbnailUrl, string MediaType, string State, bool IsPrimary);
 public record TagDto(int Id, string Name, string NameEn, string Slug);
 
 public record RecipeCardDto(
@@ -102,7 +107,8 @@ public record RecipeDetailDto(
     bool Liked,
     bool Favorited,
     int? MyRating,
-    IReadOnlyList<TagDto> Tags
+    IReadOnlyList<TagDto> Tags,
+    IReadOnlyList<RecipeMediaDto> Media
 );
 
 public record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);

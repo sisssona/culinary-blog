@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 
 export default function Footer() {
@@ -69,7 +69,7 @@ export default function Footer() {
                     </div>
 
                     <div style={{ flex: '1 1 350px' }}>
-                        <form onSubmit={handleSubscribe} style={{ display: 'flex', gap: '10px' }}>
+                        <form className="footer-subscribe" onSubmit={handleSubscribe}>
                             <input
                                 type="email"
                                 value={email}
@@ -121,11 +121,15 @@ export default function Footer() {
                 </div>
 
                 {/* Долна част с авторски права и линкове */}
-                <div style={{ borderTop: '1px solid #e3decb', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: '#786f65', flexWrap: 'wrap', gap: '10px' }}>
-                    <p style={{ margin: 0 }}>© 2026 {t('footer_text', 'Вкусни Рецепти')} — Savina. {t('all_rights_reserved', 'Всички права запазени.')}</p>
-                    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-                        <span style={{ cursor: 'pointer' }}>{t('privacy_policy', 'Политика за поверителност')}</span>
-                        <span style={{ cursor: 'pointer' }}>{t('terms_of_service', 'Общи условия')}</span>
+                <div className="footer-bottom">
+                    <p style={{ margin: 0 }}>© 2026 {t('footer_text', 'Tava')} — Savina. {t('all_rights_reserved', 'Всички права запазени.')}</p>
+                    <p style={{ margin: '6px 0 0' }}>{t('footer_company')}</p>
+                    <div className="footer-links">
+                        <Link to="/privacy">{t('privacy_policy', 'Политика за поверителност')}</Link>
+                        <Link to="/terms">{t('terms_of_service', 'Общи условия')}</Link>
+                        <button type="button" className="footer-cookie" onClick={() => window.dispatchEvent(new Event('open-cookie-settings'))}>
+                            {t('cookies.footer')}
+                        </button>
                         <span style={{ cursor: 'pointer', color: '#b45309' }} onClick={() => navigate('/unsubscribe')}>
                             {t('newsletter.unsubscribe_title', 'Отписване от бюлетин')}
                         </span>

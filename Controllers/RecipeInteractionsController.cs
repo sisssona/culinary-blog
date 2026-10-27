@@ -13,23 +13,31 @@ namespace CulinaryBlog.Controllers;
 public class RecipeInteractionsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly ContentTranslator _translator;
 
-    public RecipeInteractionsController(ApplicationDbContext context)
+    public RecipeInteractionsController(ApplicationDbContext context, ContentTranslator translator)
     {
         _context = context;
+        _translator = translator;
     }
 
-    [HttpGet("{recipeId:int}/comments")]
-    public async Task<IActionResult> GetComments(int recipeId)
+    [Authorize(Roles = "Admin")]
+    [HttpGet("moderation/comments")]
+    public async Task<IActionResult> ListCommentsForModeration([FromQuery] int take = 50)
     {
+        take = Math.Clamp(take, 1, 100);
+
         var comments = await _context.Comments
-            .Where(c => c.RecipeId == recipeId)
+            .AsNoTracking()
             .OrderByDescending(c => c.CreatedAt)
+            .Take(take)
             .Select(c => new
             {
                 c.Id,
                 c.Content,
                 c.CreatedAt,
+                c.RecipeId,
+                RecipeTitle = c.Recipe != null ? c.Recipe.Title : "",
                 c.UserId,
                 AuthorName = c.User != null
                     ? (string.IsNullOrWhiteSpace(c.User.DisplayName) ? c.User.Email : c.User.DisplayName)
@@ -40,9 +48,45 @@ public class RecipeInteractionsController : ControllerBase
         return Ok(comments);
     }
 
+    [HttpGet("{recipeId:int}/comments")]
+    public async Task<IActionResult> GetComments(int recipeId, CancellationToken cancellationToken)
+    {
+        var pending = await _context.Comments
+            .Where(c => c.RecipeId == recipeId && c.ContentEn == null)
+            .ToListAsync(cancellationToken);
+        var changed = false;
+        foreach (var comment in pending)
+        {
+            if (await _translator.ApplyCommentAsync(comment, cancellationToken))
+                changed = true;
+        }
+
+        if (changed)
+            await _context.SaveChangesAsync(cancellationToken);
+
+        var comments = await _context.Comments
+            .AsNoTracking()
+            .Where(c => c.RecipeId == recipeId)
+            .OrderByDescending(c => c.CreatedAt)
+            .Select(c => new
+            {
+                c.Id,
+                c.Content,
+                c.ContentEn,
+                c.CreatedAt,
+                c.UserId,
+                AuthorName = c.User != null
+                    ? (string.IsNullOrWhiteSpace(c.User.DisplayName) ? c.User.Email : c.User.DisplayName)
+                    : "Готвач"
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(comments);
+    }
+
     [Authorize]
     [HttpPost("{recipeId:int}/comments")]
-    public async Task<IActionResult> AddComment(int recipeId, [FromBody] CommentDto dto)
+    public async Task<IActionResult> AddComment(int recipeId, [FromBody] CommentDto dto, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId))
             return Unauthorized();
@@ -60,8 +104,9 @@ public class RecipeInteractionsController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
+        await _translator.ApplyCommentAsync(comment, cancellationToken);
         _context.Comments.Add(comment);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
 
         // ✅ Audit log
         var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
@@ -78,6 +123,7 @@ public class RecipeInteractionsController : ControllerBase
         {
             comment.Id,
             comment.Content,
+            comment.ContentEn,
             comment.CreatedAt,
             comment.UserId,
             AuthorName = user?.DisplayName ?? user?.Email ?? "Готвач"
@@ -101,8 +147,20 @@ public class RecipeInteractionsController : ControllerBase
         if (!isAdmin && comment.UserId != userId)
             return Forbid();
 
+        var recipeId = comment.RecipeId;
+        var snippet = comment.Content.Length > 80 ? comment.Content[..80] + "…" : comment.Content;
+
         _context.Comments.Remove(comment);
         await _context.SaveChangesAsync();
+
+        var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
+        await auditService.LogActionAsync(
+            userId,
+            "DeleteComment",
+            "Comment",
+            commentId,
+            $"Коментар към рецепта {recipeId}: {snippet}"
+        );
 
         return Ok(new { message = "Коментарът беше изтрит успешно." });
     }

@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../api/axios';
 import CategorySelect from '../components/CategorySelect';
-import ImageDropzone from '../components/ImageDropzone';
+import RecipePhotoPicker from '../components/RecipePhotoPicker';
 import TagInput from '../components/TagInput';
 import IngredientInput, { newRow } from '../components/IngredientInput';
 
-const MIN_TAGS = 3;
-const MAX_TAGS = 6;
+const MAX_TAGS = 3;
 
 export default function AddRecipePage() {
     const navigate = useNavigate();
@@ -23,7 +22,8 @@ export default function AddRecipePage() {
     const [servings, setServings] = useState(4);
     const [difficulty, setDifficulty] = useState('medium');
 
-    const [imageFile, setImageFile] = useState(null);
+    const [photoState, setPhotoState] = useState({ items: [], removedIds: [], removedLegacy: false });
+    const [videoFile, setVideoFile] = useState(null);
     const [selectedTags, setSelectedTags] = useState([]);
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -42,8 +42,8 @@ export default function AddRecipePage() {
             return;
         }
 
-        if (selectedTags.length < MIN_TAGS || selectedTags.length > MAX_TAGS) {
-            setError(t('recipe.errors.tagsCount', { min: MIN_TAGS, max: MAX_TAGS }));
+        if (selectedTags.length > MAX_TAGS) {
+            setError(t('recipe.errors.tagsCount', { max: MAX_TAGS }));
             return;
         }
 
@@ -60,7 +60,7 @@ export default function AddRecipePage() {
         try {
             const ingredientsJson = JSON.stringify(
                 filledRows.map((r) => ({
-                    Amount: [r.amount, r.unit].filter(Boolean).join(' ').trim(),
+                    Amount: r.unit === 'на вкус' ? 'на вкус' : [r.amount, r.unit].filter(Boolean).join(' ').trim(),
                     Name: r.name.trim()
                 }))
             );
@@ -77,8 +77,12 @@ export default function AddRecipePage() {
             formData.append('AgreedToTerms', agreedToTerms);
             formData.append('TagsJson', JSON.stringify(selectedTags.map((tg) => tg.id)));
 
-            if (imageFile) {
-                formData.append('ImageFile', imageFile);
+            const photoFiles = photoState.items.filter((item) => item.file);
+            photoFiles.forEach((item) => formData.append('Images', item.file));
+            const coverIndex = photoFiles.findIndex((item) => item.isCover);
+            if (coverIndex >= 0) formData.append('CoverIndex', String(coverIndex));
+            if (videoFile) {
+                formData.append('Videos', videoFile);
             }
 
             await api.post('/recipes', formData, {
@@ -111,7 +115,25 @@ export default function AddRecipePage() {
                 {/* 1. Снимка */}
                 <section className="form-section">
                     <h3 className="form-section-title">{t('recipe.sections.photo')}</h3>
-                    <ImageDropzone onFileSelect={setImageFile} />
+                    <RecipePhotoPicker onChange={setPhotoState} />
+                    <label className="form-group">
+                        {t('recipe_video_label')}
+                        <input
+                            type="file"
+                            accept="video/mp4,video/webm"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                if (file && file.size > 40 * 1024 * 1024) {
+                                    setError(t('recipe_video_too_big'));
+                                    e.target.value = '';
+                                    setVideoFile(null);
+                                    return;
+                                }
+                                setVideoFile(file);
+                            }}
+                        />
+                        <span className="recipe-video-hint">{t('recipe_video_hint')}</span>
+                    </label>
                 </section>
 
                 {/* 2. Заглавие + категория */}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../api/axios';
+import GoogleSignIn from './GoogleSignIn';
 
 const inputStyle = {
     width: '100%',
@@ -57,7 +58,7 @@ function PasswordField({ label, value, onChange, autoComplete, minLength, hint, 
 
 export default function LoginModal({ isOpen, onClose }) {
     const { login, register } = useAuth();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
 
     const [activeTab, setActiveTab] = useState('login');
 
@@ -68,7 +69,7 @@ export default function LoginModal({ isOpen, onClose }) {
     const [regEmail, setRegEmail] = useState('');
     const [regPassword, setRegPassword] = useState('');
     const [regConfirmPassword, setRegConfirmPassword] = useState('');
-    const [regIsSubscribed, setRegIsSubscribed] = useState(true); // Абонамент по подразбиране
+    const [regIsSubscribed, setRegIsSubscribed] = useState(false);
 
     const [forgotEmail, setForgotEmail] = useState('');
 
@@ -85,7 +86,7 @@ export default function LoginModal({ isOpen, onClose }) {
             setRegEmail('');
             setRegPassword('');
             setRegConfirmPassword('');
-            setRegIsSubscribed(true);
+            setRegIsSubscribed(false);
             setForgotEmail('');
             setError('');
             setSuccessMessage('');
@@ -158,7 +159,8 @@ export default function LoginModal({ isOpen, onClose }) {
         setSuccessMessage('');
         setLoading(true);
         try {
-            await api.post('/auth/forgot-password', { email: forgotEmail });
+            const language = (i18n.language || '').toLowerCase().startsWith('en') ? 'en' : 'bg';
+            await api.post('/auth/forgot-password', { email: forgotEmail, preferredLanguage: language });
             setSuccessMessage(t('forgot_success_message', 'Ако имейл адресът съществува в системата, изпратихме инструкции за възстановяване.'));
             setForgotEmail('');
         } catch (err) {
@@ -267,6 +269,10 @@ export default function LoginModal({ isOpen, onClose }) {
                         >
                             {t('login_btn', 'Вход')}
                         </button>
+                        <GoogleSignIn
+                            onSuccess={onClose}
+                            onError={(message) => setError(t(message, message || t('google_error')))}
+                        />
                     </form>
                 )}
 
@@ -333,6 +339,10 @@ export default function LoginModal({ isOpen, onClose }) {
                         >
                             {loading ? t('registering', 'Регистрация...') : t('register_btn', 'Регистрирай се')}
                         </button>
+                        <GoogleSignIn
+                            onSuccess={onClose}
+                            onError={(message) => setError(t(message, message || t('google_error')))}
+                        />
                     </form>
                 )}
 

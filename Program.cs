@@ -28,11 +28,20 @@ if (string.IsNullOrEmpty(connectionString) || !connectionString.Contains("Passwo
     connectionString = $"Host=postgres_db;Port=5432;Database=culinary_blog_db;Username=postgres;Password={pgPassword}";
 }
 
+var allowedOrigins = new List<string> { "http://localhost:5000", "http://localhost:5173", "http://localhost:3000" };
+var frontendBase = builder.Configuration["Frontend:BaseUrl"];
+if (Uri.TryCreate(frontendBase, UriKind.Absolute, out var frontendUri))
+{
+    var frontendOrigin = $"{frontendUri.Scheme}://{frontendUri.Authority}";
+    if (!allowedOrigins.Contains(frontendOrigin, StringComparer.OrdinalIgnoreCase))
+        allowedOrigins.Add(frontendOrigin);
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5000", "http://localhost:5173", "http://localhost:3000")
+        policy.WithOrigins(allowedOrigins.ToArray())
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -108,12 +117,19 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 
 // 5. Регистрация на услуги (Services)
-builder.Services.AddHttpClient<TranslationService>();
+builder.Services.AddHttpClient<TranslationService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(8);
+});
+builder.Services.AddScoped<ContentTranslator>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddSingleton<IRecipeMediaProcessingQueue, RecipeMediaProcessingQueue>();
+builder.Services.AddScoped<IMediaProcessingService, MediaProcessingService>();
 
 builder.Services.AddHostedService<NewsletterBackgroundService>();
+builder.Services.AddHostedService<RecipeMediaBackgroundService>();
 
 // 6. Swagger Конфигурация
 builder.Services.AddSwaggerGen(c =>
@@ -182,8 +198,8 @@ if (!app.Environment.IsEnvironment("Testing"))
     using (var scope = app.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        context.Database.EnsureCreated();
-        DataSeeder.SeedData(context);
+        DatabaseBootstrap.ApplyMigrations(context);
+        DataSeeder.SeedData(context, scope.ServiceProvider.GetRequiredService<IConfiguration>());
     }
 }
 

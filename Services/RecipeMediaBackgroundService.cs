@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -9,16 +10,16 @@ namespace CulinaryBlog.Services;
 public class RecipeMediaBackgroundService : BackgroundService
 {
     private readonly IRecipeMediaProcessingQueue _queue;
-    private readonly IMediaProcessingService _processor;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<RecipeMediaBackgroundService> _logger;
 
     public RecipeMediaBackgroundService(
         IRecipeMediaProcessingQueue queue,
-        IMediaProcessingService processor,
+        IServiceScopeFactory scopeFactory,
         ILogger<RecipeMediaBackgroundService> logger)
     {
         _queue = queue;
-        _processor = processor;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -46,7 +47,9 @@ public class RecipeMediaBackgroundService : BackgroundService
             try
             {
                 _logger.LogInformation("Processing media for recipe {RecipeId}", recipeId);
-                await _processor.ProcessRecipeMediaAsync(recipeId, stoppingToken);
+                using var scope = _scopeFactory.CreateScope();
+                var processor = scope.ServiceProvider.GetRequiredService<IMediaProcessingService>();
+                await processor.ProcessRecipeMediaAsync(recipeId, stoppingToken);
             }
             catch (Exception ex)
             {

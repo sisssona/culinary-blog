@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next'; // 1. Добави импорт
 import api from '../api/axios';
+import RecipePhotoPicker from '../components/RecipePhotoPicker';
 
 export default function EditRecipe() {
     const { id } = useParams();
@@ -13,15 +14,14 @@ export default function EditRecipe() {
     const [ingredients, setIngredients] = useState('');
     const [instructions, setInstructions] = useState('');
 
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState('');
+    const [videoFile, setVideoFile] = useState(null);
+    const [initialPhotos, setInitialPhotos] = useState([]);
+    const [photoState, setPhotoState] = useState({ items: [], removedIds: [], removedLegacy: false });
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState('');
-
-    const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.avif', '.gif'];
 
     const getImageUrl = (imagePath) => {
         if (!imagePath) return '/no-image.jpg';
@@ -40,8 +40,21 @@ export default function EditRecipe() {
                 setIngredients(recipe.ingredients || '');
                 setInstructions(recipe.instructions || '');
 
-                if (recipe.imageUrl) {
-                    setPreviewUrl(getImageUrl(recipe.imageUrl));
+                const images = (recipe.media || []).filter((item) => item.mediaType === 'image' && item.state === 'ready' && item.url);
+                if (images.length > 0) {
+                    setInitialPhotos(images.map((item) => ({
+                        id: item.id,
+                        url: getImageUrl(item.url),
+                        legacy: false,
+                        isCover: item.isPrimary || item.url === recipe.imageUrl
+                    })));
+                } else if (recipe.imageUrl) {
+                    setInitialPhotos([{
+                        id: null,
+                        url: getImageUrl(recipe.imageUrl),
+                        legacy: true,
+                        isCover: true
+                    }]);
                 }
             } catch (err) {
                 setError(t('error_loading_recipe') || 'Грешка при зареждане на рецептата.');
@@ -53,43 +66,6 @@ export default function EditRecipe() {
 
         fetchRecipe();
     }, [id, t]);
-
-    useEffect(() => {
-        return () => {
-            if (previewUrl && previewUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(previewUrl);
-            }
-        };
-    }, [previewUrl]);
-
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        setError('');
-
-        if (!file) return;
-
-        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-        if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
-            setError(`${t('error_allowed_formats') || 'Позволени са само следните формати:'} ${ALLOWED_EXTENSIONS.join(', ')}`);
-            e.target.value = '';
-            return;
-        }
-
-        const maxSizeBytes = 10 * 1024 * 1024; // 10MB
-        if (file.size > maxSizeBytes) {
-            setError(t('error_file_size') || 'Файлът надвишава максималния размер от 10MB.');
-            e.target.value = '';
-            return;
-        }
-
-        if (previewUrl && previewUrl.startsWith('blob:')) {
-            URL.revokeObjectURL(previewUrl);
-        }
-
-        const objectUrl = URL.createObjectURL(file);
-        setSelectedFile(file);
-        setPreviewUrl(objectUrl);
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -103,8 +79,15 @@ export default function EditRecipe() {
         formData.append('Ingredients', ingredients);
         formData.append('Instructions', instructions);
 
-        if (selectedFile) {
-            formData.append('ImageFile', selectedFile);
+        photoState.removedIds.forEach((mediaId) => formData.append('RemoveMediaIds', mediaId));
+        if (photoState.removedLegacy) formData.append('RemoveLegacyCover', 'true');
+        const newPhotos = photoState.items.filter((item) => item.file);
+        newPhotos.forEach((item) => formData.append('Images', item.file));
+        const cover = photoState.items.find((item) => item.isCover);
+        if (cover?.id) formData.append('CoverMediaId', String(cover.id));
+        else if (cover?.file) formData.append('CoverIndex', String(newPhotos.indexOf(cover)));
+        if (videoFile) {
+            formData.append('Videos', videoFile);
         }
 
         try {
@@ -166,26 +149,20 @@ export default function EditRecipe() {
                     />
                 </div>
 
+                {loading ? null : (
+                    <RecipePhotoPicker initialItems={initialPhotos} onChange={setPhotoState} />
+                )}
+
                 <div>
                     <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.3rem' }}>
-                        {t('label_image') || 'Снимка на ястието (JPG, PNG, WEBP до 10MB):'}
+                        {t('recipe_video_label')}
                     </label>
                     <input
                         type="file"
-                        accept="image/*"
-                        onChange={handleFileChange}
-                        style={{ marginTop: '0.3rem' }}
+                        accept="video/mp4,video/webm"
+                        onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
                     />
-                    {previewUrl && (
-                        <div style={{ marginTop: '0.8rem', backgroundColor: '#f9f9f9', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', textAlign: 'center' }}>
-                            <p style={{ margin: '0 0 0.4rem 0', fontSize: '0.9rem', color: '#666' }}>{t('preview') || 'Преглед:'}</p>
-                            <img
-                                src={previewUrl}
-                                alt="Преглед"
-                                style={{ width: '100%', maxHeight: '250px', objectFit: 'contain', borderRadius: '6px' }}
-                            />
-                        </div>
-                    )}
+                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: '#666' }}>{t('recipe_video_hint')}</p>
                 </div>
 
                 <div>

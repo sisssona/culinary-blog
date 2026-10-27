@@ -6,6 +6,7 @@ namespace CulinaryBlog.Models
     {
         public int Id { get; set; }
         public string Content { get; set; } = string.Empty;
+        public string? ContentEn { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public int RecipeId { get; set; }

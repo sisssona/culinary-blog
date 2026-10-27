@@ -15,6 +15,11 @@ public record LoginDto(
     [Required] string Password
 );
 
+public record GoogleLoginDto(
+    [Required] string IdToken,
+    string? PreferredLanguage
+);
+
 public record AuthResponseDto(
     string Token,
     int UserId,
@@ -25,7 +30,8 @@ public record AuthResponseDto(
 );
 
 public record ForgotPasswordDto(
-    [Required][EmailAddress] string Email
+    [Required][EmailAddress] string Email,
+    string? PreferredLanguage = null
 );
 
 public record ResetPasswordDto(

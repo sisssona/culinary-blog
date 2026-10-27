@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
-const UNIT_VALUES = ['бр.', 'г', 'кг', 'мл', 'л', 'ч.л.', 'с.л.', 'ч.ч.', 'щипка', 'връзка'];
+const UNIT_VALUES = ['бр.', 'г', 'кг', 'мл', 'л', 'ч.л.', 'с.л.', 'ч.ч.', 'щипка', 'връзка', 'на вкус'];
+const TO_TASTE = 'на вкус';
 
 let rowIdCounter = 0;
 const newRow = () => ({ id: ++rowIdCounter, name: '', amount: '', unit: 'бр.' });
@@ -39,14 +40,20 @@ export default function IngredientInput({ rows, onChange }) {
                             type="text"
                             inputMode="decimal"
                             className="form-input ingredient-amount"
-                            placeholder={t('recipe.fields.ingredientAmountPlaceholder')}
+                            placeholder={row.unit === TO_TASTE ? '' : t('recipe.fields.ingredientAmountPlaceholder')}
                             value={row.amount}
+                            disabled={row.unit === TO_TASTE}
                             onChange={(e) => updateRow(row.id, 'amount', e.target.value)}
                         />
                         <select
                             className="form-input ingredient-unit"
                             value={row.unit}
-                            onChange={(e) => updateRow(row.id, 'unit', e.target.value)}
+                            onChange={(e) => {
+                                const unit = e.target.value;
+                                onChange(rows.map((r) => (r.id === row.id
+                                    ? { ...r, unit, amount: unit === TO_TASTE ? '' : r.amount }
+                                    : r)));
+                            }}
                         >
                             {UNIT_VALUES.map((u) => (
                                 <option key={u} value={u}>{t(`recipe.units.${u}`, u)}</option>

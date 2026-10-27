@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTags } from '../api/recipeService';
 
-const MIN_TAGS = 3;
-const MAX_TAGS = 6;
+const MAX_TAGS = 3;
 const GROUP_ORDER = ['time', 'occasion', 'diet', 'difficulty', 'method'];
 
 export default function TagInput({ selectedTags, onChange }) {
@@ -11,7 +10,7 @@ export default function TagInput({ selectedTags, onChange }) {
     const lang = i18n.language || 'bg';
     const [tagsByGroup, setTagsByGroup] = useState({});
     const [openGroups, setOpenGroups] = useState({});
-    const [panelOpen, setPanelOpen] = useState(true);
+    const [panelOpen, setPanelOpen] = useState(false);
 
     useEffect(() => {
         getTags()
@@ -32,7 +31,6 @@ export default function TagInput({ selectedTags, onChange }) {
 
     const isSelected = (tagId) => selectedTags.some((tg) => tg.id === tagId);
     const atLimit = selectedTags.length >= MAX_TAGS;
-    const belowMin = selectedTags.length < MIN_TAGS;
 
     const toggleTag = (tag) => {
         if (isSelected(tag.id)) {
@@ -56,7 +54,7 @@ export default function TagInput({ selectedTags, onChange }) {
         <div className="form-group tag-input">
             <div className="tag-panel-header">
                 <label>
-                    {t('recipe.tags.label', { min: MIN_TAGS, max: MAX_TAGS })}
+                    {t('recipe.tags.label', { max: MAX_TAGS })}
                     {' '}({t('recipe.tags.selectedCount', { count: selectedTags.length })})
                 </label>
                 <button
@@ -127,12 +125,10 @@ export default function TagInput({ selectedTags, onChange }) {
                 </>
             )}
 
-            <p className={`tag-hint ${belowMin ? 'tag-hint-warning' : ''}`}>
+            <p className="tag-hint">
                 {atLimit
                     ? t('recipe.tags.maxReached', { max: MAX_TAGS })
-                    : belowMin
-                        ? t('recipe.tags.needMore', { count: MIN_TAGS - selectedTags.length })
-                        : t('recipe.tags.canContinue')}
+                    : t('recipe.tags.canContinue')}
             </p>
         </div>
     );

@@ -21,21 +21,28 @@ namespace CulinaryBlog.Controllers;
 [Route("api/v1/[controller]")]
 public class RecipesController : ControllerBase
 {
-    private const int MinTags = 3;
-    private const int MaxTags = 6;
+    private const int MaxTags = 3;
+
+    private const int MaxVideos = 2;
+    private const int MaxPhotos = 8;
+    private const long MaxPhotoBytes = 10 * 1024 * 1024;
+    private static readonly string[] PhotoExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".heic", ".heif", ".avif", ".gif"];
 
     private readonly ApplicationDbContext _context;
     private readonly IFileStorageService _fileStorage;
     private readonly TranslationService _translationService;
+    private readonly IRecipeMediaProcessingQueue _mediaQueue;
 
     public RecipesController(
         ApplicationDbContext context,
         IFileStorageService fileStorage,
-        TranslationService translationService)
+        TranslationService translationService,
+        IRecipeMediaProcessingQueue mediaQueue)
     {
         _context = context;
         _fileStorage = fileStorage;
         _translationService = translationService;
+        _mediaQueue = mediaQueue;
     }
 
     [HttpGet]
@@ -236,15 +243,21 @@ public class RecipesController : ControllerBase
             return BadRequest(new { error = "Трябва да приемете условията за публикуване, за да качите рецепта." });
 
         var tagIds = ParseTagIds(dto.TagsJson);
-        if (tagIds.Count < MinTags || tagIds.Count > MaxTags)
-            return BadRequest(new { error = $"Изберете между {MinTags} и {MaxTags} тага за рецептата." });
+        if (tagIds.Count > MaxTags)
+            return BadRequest(new { error = $"Може да изберете най-много {MaxTags} тага." });
 
         var tags = await _context.Tags.Where(t => tagIds.Contains(t.Id)).ToListAsync(cancellationToken);
         if (tags.Count != tagIds.Count)
             return BadRequest(new { error = "Един или повече избрани тагове не съществуват." });
 
         var isAdmin = User.IsInRole("Admin");
-        var (imageUrl, thumbnailUrl) = await SaveImageAsync(dto.ImageFile, cancellationToken);
+        var stagedVideos = await StageVideosAsync(dto.Videos, cancellationToken);
+        var photos = await SavePhotosAsync(IncomingPhotos(dto), cancellationToken);
+        if (photos == null)
+            return BadRequest(new { error = "Снимката трябва да е JPG, JFIF, PNG, WEBP, HEIC или GIF и да е до 10 MB. Най-много 8 снимки." });
+        var coverIndex = dto.CoverIndex >= 0 && dto.CoverIndex < photos.Count ? dto.CoverIndex : 0;
+        var imageUrl = photos.Count > 0 ? photos[coverIndex].Main : null;
+        var thumbnailUrl = photos.Count > 0 ? photos[coverIndex].Thumb : null;
         var category = await ResolveCategoryAsync(dto, cancellationToken);
 
         var recipe = new Recipe
@@ -282,6 +295,10 @@ public class RecipesController : ControllerBase
 
         _context.Recipes.Add(recipe);
         await _context.SaveChangesAsync(cancellationToken);
+        AddPhotoMedia(recipe, photos, coverIndex, authorId);
+        if (photos.Count > 0)
+            await _context.SaveChangesAsync(cancellationToken);
+        await EnqueueStagedVideosAsync(recipe, stagedVideos, authorId, cancellationToken);
 
         var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
         await auditService.LogActionAsync(
@@ -308,22 +325,14 @@ public class RecipesController : ControllerBase
         if (!await CanEditWithAuditAsync(recipe, currentUserId, "Update"))
             return Forbid();
 
+        var stagedVideos = await StageVideosAsync(dto.Videos, cancellationToken);
         var originalTitle = recipe.Title;  // For audit log
-
-        if (dto.ImageFile != null && dto.ImageFile.Length > 0)
-        {
-            if (!string.IsNullOrEmpty(recipe.ImageUrl)) _fileStorage.DeleteFile(recipe.ImageUrl);
-            if (!string.IsNullOrEmpty(recipe.ThumbnailUrl)) _fileStorage.DeleteFile(recipe.ThumbnailUrl);
-            var upload = await SaveImageAsync(dto.ImageFile, cancellationToken);
-            recipe.ImageUrl = upload.imageUrl;
-            recipe.ThumbnailUrl = upload.thumbnailUrl;
-        }
 
         if (!string.IsNullOrWhiteSpace(dto.TagsJson))
         {
             var tagIds = ParseTagIds(dto.TagsJson);
-            if (tagIds.Count < MinTags || tagIds.Count > MaxTags)
-                return BadRequest(new { error = $"Изберете между {MinTags} и {MaxTags} тага за рецептата." });
+            if (tagIds.Count > MaxTags)
+                return BadRequest(new { error = $"Може да изберете най-много {MaxTags} тага." });
 
             var tags = await _context.Tags.Where(t => tagIds.Contains(t.Id)).ToListAsync(cancellationToken);
             if (tags.Count != tagIds.Count)
@@ -350,6 +359,9 @@ public class RecipesController : ControllerBase
         ApplyStructuredContent(recipe, dto, replace: true);
         await AddEnglishTranslationAsync(recipe, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+        var photoError = await SyncPhotosAsync(recipe, dto, currentUserId, cancellationToken);
+        if (photoError != null) return photoError;
+        await EnqueueStagedVideosAsync(recipe, stagedVideos, currentUserId, cancellationToken);
 
         // Audit log
         var auditService = HttpContext.RequestServices.GetRequiredService<IAuditLogService>();
@@ -481,10 +493,23 @@ public class RecipesController : ControllerBase
 
         try
         {
-            if (!string.IsNullOrEmpty(recipe.ImageUrl))
-                _fileStorage.DeleteFile(recipe.ImageUrl);
-            if (!string.IsNullOrEmpty(recipe.ThumbnailUrl))
-                _fileStorage.DeleteFile(recipe.ThumbnailUrl);
+            var media = await _context.RecipeMedia
+                .Where(m => m.RecipeId == recipe.Id)
+                .ToListAsync(cancellationToken);
+            var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void Remember(string? path)
+            {
+                if (!string.IsNullOrEmpty(path)) files.Add(path);
+            }
+            foreach (var item in media)
+            {
+                Remember(item.Url);
+                Remember(item.ThumbnailUrl);
+            }
+            Remember(recipe.ImageUrl);
+            Remember(recipe.ThumbnailUrl);
+            foreach (var path in files)
+                _fileStorage.DeleteFile(path);
 
             _context.Recipes.Remove(recipe);
             await _context.SaveChangesAsync(cancellationToken);
@@ -549,6 +574,183 @@ public class RecipesController : ControllerBase
         return recipe.AuthorId == currentUserId || User.IsInRole("Admin");
     }
 
+    private static List<IFormFile> IncomingPhotos(CreateRecipeDto dto)
+    {
+        var files = (dto.Images ?? []).Where(file => file is { Length: > 0 }).ToList();
+        if (files.Count == 0 && dto.ImageFile is { Length: > 0 })
+            files.Add(dto.ImageFile);
+        return files;
+    }
+
+    private async Task<List<(string Main, string Thumb)>?> SavePhotosAsync(IReadOnlyList<IFormFile> files, CancellationToken cancellationToken)
+    {
+        if (files.Count > MaxPhotos)
+            return null;
+
+        var saved = new List<(string Main, string Thumb)>();
+        foreach (var file in files)
+        {
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!PhotoExtensions.Contains(extension) || file.Length > MaxPhotoBytes)
+            {
+                foreach (var item in saved)
+                {
+                    _fileStorage.DeleteFile(item.Main);
+                    _fileStorage.DeleteFile(item.Thumb);
+                }
+                return null;
+            }
+
+            var upload = await _fileStorage.SaveFileAsync(file, "uploads", cancellationToken);
+            saved.Add((upload.MainImageUrl, upload.ThumbnailUrl));
+        }
+
+        return saved;
+    }
+
+    private static void AddPhotoMedia(Recipe recipe, IReadOnlyList<(string Main, string Thumb)> photos, int coverIndex, int userId)
+    {
+        for (var i = 0; i < photos.Count; i++)
+        {
+            recipe.Media.Add(new RecipeMedia
+            {
+                Url = photos[i].Main,
+                ThumbnailUrl = photos[i].Thumb,
+                MediaType = "image",
+                State = "ready",
+                IsPrimary = i == coverIndex,
+                SortOrder = i,
+                UploadedBy = userId,
+                UploadedAt = DateTime.UtcNow
+            });
+        }
+    }
+
+    private async Task<IActionResult?> SyncPhotosAsync(Recipe recipe, CreateRecipeDto dto, int userId, CancellationToken cancellationToken)
+    {
+        var incoming = IncomingPhotos(dto);
+        var hasRemove = dto.RemoveMediaIds is { Count: > 0 } || dto.RemoveLegacyCover;
+        var hasCoverChange = dto.CoverMediaId > 0 || dto.CoverIndex >= 0;
+        if (incoming.Count == 0 && !hasRemove && !hasCoverChange)
+            return null;
+
+        var imageMedia = recipe.Media.Where(m => m.MediaType == "image").ToList();
+        var removedCover = false;
+        if (dto.RemoveMediaIds != null)
+        {
+            foreach (var id in dto.RemoveMediaIds.Distinct())
+            {
+                var media = imageMedia.FirstOrDefault(m => m.Id == id);
+                if (media == null) continue;
+                if (media.Url == recipe.ImageUrl) removedCover = true;
+                _fileStorage.DeleteFile(media.Url);
+                _fileStorage.DeleteFile(media.ThumbnailUrl);
+                recipe.Media.Remove(media);
+                _context.RecipeMedia.Remove(media);
+                imageMedia.Remove(media);
+            }
+        }
+
+        var legacy = imageMedia.FirstOrDefault(m => m.Url == recipe.ImageUrl);
+        if (legacy == null && !string.IsNullOrEmpty(recipe.ImageUrl) && !dto.RemoveLegacyCover && !removedCover)
+        {
+            legacy = new RecipeMedia
+            {
+                Url = recipe.ImageUrl,
+                ThumbnailUrl = recipe.ThumbnailUrl,
+                MediaType = "image",
+                State = "ready",
+                IsPrimary = true,
+                SortOrder = imageMedia.Count,
+                UploadedBy = userId,
+                UploadedAt = DateTime.UtcNow
+            };
+            recipe.Media.Add(legacy);
+            imageMedia.Add(legacy);
+        }
+        else if (dto.RemoveLegacyCover && legacy == null && !string.IsNullOrEmpty(recipe.ImageUrl))
+        {
+            _fileStorage.DeleteFile(recipe.ImageUrl);
+            _fileStorage.DeleteFile(recipe.ThumbnailUrl);
+            recipe.ImageUrl = null;
+            recipe.ThumbnailUrl = null;
+        }
+
+        if (imageMedia.Count + incoming.Count > MaxPhotos)
+            return BadRequest(new { error = "Една рецепта може да има най-много 8 снимки." });
+
+        var saved = await SavePhotosAsync(incoming, cancellationToken);
+        if (saved == null)
+            return BadRequest(new { error = "Снимката трябва да е JPG, JFIF, PNG, WEBP, HEIC или GIF и да е до 10 MB." });
+
+        var newMedia = new List<RecipeMedia>();
+        for (var i = 0; i < saved.Count; i++)
+        {
+            var media = new RecipeMedia
+            {
+                Url = saved[i].Main,
+                ThumbnailUrl = saved[i].Thumb,
+                MediaType = "image",
+                State = "ready",
+                SortOrder = imageMedia.Count + i,
+                UploadedBy = userId,
+                UploadedAt = DateTime.UtcNow
+            };
+            recipe.Media.Add(media);
+            newMedia.Add(media);
+        }
+
+        RecipeMedia? cover = null;
+        if (dto.CoverMediaId > 0)
+            cover = imageMedia.FirstOrDefault(m => m.Id == dto.CoverMediaId);
+        if (cover == null && dto.CoverIndex >= 0 && dto.CoverIndex < newMedia.Count)
+            cover = newMedia[dto.CoverIndex];
+        cover ??= imageMedia.FirstOrDefault(m => m.IsPrimary)
+            ?? imageMedia.FirstOrDefault()
+            ?? newMedia.FirstOrDefault();
+
+        foreach (var media in imageMedia.Concat(newMedia))
+            media.IsPrimary = cover != null && ReferenceEquals(media, cover);
+
+        recipe.ImageUrl = cover?.Url;
+        recipe.ThumbnailUrl = cover?.ThumbnailUrl;
+        await _context.SaveChangesAsync(cancellationToken);
+        return null;
+    }
+
+    private async Task<List<string>> StageVideosAsync(IEnumerable<IFormFile>? videos, CancellationToken cancellationToken)
+    {
+        var urls = new List<string>();
+        if (videos == null) return urls;
+
+        foreach (var video in videos.Where(v => v != null && v.Length > 0).Take(MaxVideos))
+            urls.Add(await _fileStorage.SaveVideoAsync(video, "uploads/temp", cancellationToken));
+
+        return urls;
+    }
+
+    private async Task EnqueueStagedVideosAsync(Recipe recipe, IReadOnlyList<string> urls, int userId, CancellationToken cancellationToken)
+    {
+        if (urls.Count == 0) return;
+
+        var order = recipe.Media.Count;
+        foreach (var url in urls)
+        {
+            recipe.Media.Add(new RecipeMedia
+            {
+                Url = url,
+                MediaType = "video",
+                SortOrder = order++,
+                State = "processing",
+                UploadedBy = userId,
+                UploadedAt = DateTime.UtcNow
+            });
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        await _mediaQueue.EnqueueRecipeAsync(recipe.Id, cancellationToken);
+    }
+
     private async Task<(string? imageUrl, string? thumbnailUrl)> SaveImageAsync(IFormFile? file, CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
@@ -611,8 +813,7 @@ public class RecipesController : ControllerBase
                 recipe.IngredientItems.Clear();
             foreach (var item in ingredientLines)
                 recipe.IngredientItems.Add(item);
-            recipe.Ingredients = string.Join('\n', ingredientLines.Select(i =>
-                string.IsNullOrWhiteSpace(i.Amount) ? i.Name : $"{i.Amount} {i.Name}"));
+            recipe.Ingredients = string.Join('\n', ingredientLines.Select(FormatIngredientLine));
         }
         else if (!string.IsNullOrWhiteSpace(dto.Ingredients))
         {
@@ -649,6 +850,15 @@ public class RecipesController : ControllerBase
                 recipe.Steps.Add(new RecipeStep { SortOrder = i + 1, Text = lines[i] });
             }
         }
+    }
+
+    private static string FormatIngredientLine(RecipeIngredient item)
+    {
+        if (string.IsNullOrWhiteSpace(item.Amount))
+            return item.Name;
+        if (string.Equals(item.Amount.Trim(), "на вкус", StringComparison.OrdinalIgnoreCase))
+            return $"{item.Name} — на вкус";
+        return $"{item.Amount} {item.Name}";
     }
 
     private static List<RecipeIngredient> ParseIngredients(CreateRecipeDto dto)

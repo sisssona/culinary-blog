@@ -36,9 +36,9 @@ public static class EmailTemplates
         if (lang == "en")
         {
             return (
-                "Confirm your email — Delicious Recipes",
+                "Confirm your email — Tava",
                 "Hello, {0}!",
-                "Thank you for registering at Delicious Recipes.",
+                "Thank you for registering at Tava.",
                 "Please confirm your email address so you can publish recipes:",
                 "Confirm Email",
                 "If you did not register, simply ignore this email."
@@ -47,14 +47,36 @@ public static class EmailTemplates
         else
         {
             return (
-                "Потвърдете своя имейл — Вкусни Рецепти",
+                "Потвърдете своя имейл — Tava",
                 "Здравейте, {0}!",
-                "Благодарим ви, че се регистрирахте във Вкусни Рецепти.",
+                "Благодарим ви, че се регистрирахте в Tava.",
                 "Моля, потвърдете своя имейл адрес, за да можете да публикувате рецепти:",
                 "Потвърди имейла",
                 "Ако не сте се регистрирали, просто игнорирайте този имейл."
             );
         }
+    }
+
+    public static (string Subject, string Title, string Message, string Button, string Ignore) GetPasswordResetTexts(string lang)
+    {
+        if (lang == "en")
+        {
+            return (
+                "Reset your password — Tava",
+                "Hello, {0}!",
+                "We received a request to reset the password for your account.",
+                "Set a new password",
+                "The link is valid for 1 hour. If you did not ask for this change, ignore this email — your password stays the same."
+            );
+        }
+
+        return (
+            "Възстановяване на парола — Tava",
+            "Здравейте, {0}!",
+            "Получихме заявка за възстановяване на паролата на вашия акаунт.",
+            "Задай нова парола",
+            "Линкът е валиден 1 час. Ако не сте поискали тази промяна, игнорирайте този имейл — паролата ви остава непроменена."
+        );
     }
 }
 
@@ -89,19 +111,20 @@ public class EmailService : IEmailService
         return SendAsync(toEmail, subject, body, cancellationToken);
     }
 
-    public Task SendPasswordResetAsync(string toEmail, string displayName, string resetUrl, CancellationToken cancellationToken = default)
+    public Task SendPasswordResetAsync(string toEmail, string displayName, string resetUrl, string lang = "bg", CancellationToken cancellationToken = default)
     {
-        var subject = "Възстановяване на парола — Вкусни Рецепти";
+        var texts = EmailTemplates.GetPasswordResetTexts(lang);
+        var subject = texts.Subject;
         var body = $@"
             <div style=""font-family: sans-serif; max-width: 480px; margin: 0 auto;"">
-                <h2>Здравейте, {WebUtility.HtmlEncode(displayName)}!</h2>
-                <p>Получихме заявка за възстановяване на паролата на вашия акаунт.</p>
+                <h2>{string.Format(texts.Title, WebUtility.HtmlEncode(displayName))}</h2>
+                <p>{texts.Message}</p>
                 <p style=""margin: 24px 0;"">
                     <a href=""{resetUrl}"" style=""background:#2196F3;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;"">
-                        Задай нова парола
+                        {texts.Button}
                     </a>
                 </p>
-                <p style=""color:#888;font-size:13px;"">Линкът е валиден 1 час. Ако не сте поискали тази промяна, игнорирайте този имейл — паролата ви остава непроменена.</p>
+                <p style=""color:#888;font-size:13px;"">{texts.Ignore}</p>
             </div>";
 
         return SendAsync(toEmail, subject, body, cancellationToken);
@@ -115,7 +138,7 @@ public class EmailService : IEmailService
     private async Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken)
     {
         var section = _config.GetSection("Email");
-        var senderName = section["SenderName"] ?? "Вкусни Рецепти";
+        var senderName = section["SenderName"] ?? "Tava";
         var senderEmail = section["SenderEmail"];
         var smtpServer = section["SmtpServer"];
         var smtpPort = int.Parse(section["SmtpPort"] ?? "587");

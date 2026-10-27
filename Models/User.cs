@@ -11,6 +11,9 @@ public class User
 
     public string Email { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
+
+    [MaxLength(255)]
+    public string? GoogleSubject { get; set; }
     public string Role { get; set; } = "User";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

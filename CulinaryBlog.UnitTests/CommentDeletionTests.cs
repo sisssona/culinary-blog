@@ -72,6 +72,27 @@ public class CommentDeletionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ListCommentsForModeration_AsAdmin_ReturnsSeededComment()
+    {
+        var commentId = await SeedCommentAsync(CustomWebApplicationFactory.OtherUserId);
+
+        var response = await SendAsync(HttpMethod.Get, "/api/v1/recipes/moderation/comments", CustomWebApplicationFactory.AdminUserId, "Admin");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(commentId.ToString(), body);
+        Assert.Contains("Вкусно е", body);
+    }
+
+    [Fact]
+    public async Task ListCommentsForModeration_AsRegularUser_Returns403()
+    {
+        var response = await SendAsync(HttpMethod.Get, "/api/v1/recipes/moderation/comments", CustomWebApplicationFactory.AuthorUserId, "User");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task DeleteComment_WithoutAuthentication_Returns401()
     {
         var commentId = await SeedCommentAsync(CustomWebApplicationFactory.AuthorUserId);

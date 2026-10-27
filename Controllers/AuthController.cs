@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Google.Apis.Auth;
 using CulinaryBlog.Data;
 using CulinaryBlog.DTOs;
 using CulinaryBlog.Models;
@@ -80,6 +81,75 @@ public class AuthController : ControllerBase
             await _context.SaveChangesAsync();
         }
 
+        var token = GenerateJwtToken(user);
+        return Ok(ToAuthResponse(user, token));
+    }
+
+    [HttpGet("google-client")]
+    public IActionResult GoogleClient()
+    {
+        var clientId = _config["Google:ClientId"];
+        return Ok(new { clientId = string.IsNullOrWhiteSpace(clientId) ? null : clientId });
+    }
+
+    [HttpPost("google")]
+    public async Task<IActionResult> Google([FromBody] GoogleLoginDto dto)
+    {
+        var clientId = _config["Google:ClientId"];
+        if (string.IsNullOrWhiteSpace(clientId))
+            return StatusCode(503, new { error = "google_not_configured" });
+
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            payload = await GoogleJsonWebSignature.ValidateAsync(dto.IdToken, new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { clientId }
+            });
+        }
+        catch
+        {
+            return Unauthorized(new { error = "google_invalid" });
+        }
+
+        if (payload.EmailVerified != true || string.IsNullOrWhiteSpace(payload.Email))
+            return Unauthorized(new { error = "google_email_unverified" });
+
+        var email = payload.Email.Trim();
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.GoogleSubject == payload.Subject)
+            ?? await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+
+        if (user == null)
+        {
+            var name = string.IsNullOrWhiteSpace(payload.Name) ? email.Split('@')[0] : payload.Name.Trim();
+            if (name.Length > 80) name = name[..80];
+            user = new User
+            {
+                Email = email,
+                DisplayName = name,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(Convert.ToHexString(RandomNumberGenerator.GetBytes(32))),
+                EmailConfirmed = true,
+                IsSubscribedToNewsletter = false,
+                PreferredLanguage = string.IsNullOrWhiteSpace(dto.PreferredLanguage) ? "bg" : dto.PreferredLanguage,
+                GoogleSubject = payload.Subject
+            };
+            _context.Users.Add(user);
+        }
+        else
+        {
+            if (!string.IsNullOrEmpty(user.GoogleSubject) && user.GoogleSubject != payload.Subject)
+                return Conflict(new { error = "google_account_mismatch" });
+
+            user.GoogleSubject ??= payload.Subject;
+            user.EmailConfirmed = true;
+            if (string.IsNullOrWhiteSpace(user.DisplayName) && !string.IsNullOrWhiteSpace(payload.Name))
+            {
+                var name = payload.Name.Trim();
+                user.DisplayName = name.Length > 80 ? name[..80] : name;
+            }
+        }
+
+        await _context.SaveChangesAsync();
         var token = GenerateJwtToken(user);
         return Ok(ToAuthResponse(user, token));
     }
@@ -193,7 +263,9 @@ public class AuthController : ControllerBase
 
             var frontendBaseUrl = _config["Frontend:BaseUrl"] ?? "http://localhost:5173";
             var resetUrl = $"{frontendBaseUrl}/reset-password?token={user.PasswordResetToken}";
-            QueueEmail(email => email.SendPasswordResetAsync(user.Email, user.DisplayName, resetUrl));
+            var requested = string.IsNullOrWhiteSpace(dto.PreferredLanguage) ? user.PreferredLanguage : dto.PreferredLanguage;
+            var language = requested?.StartsWith("en", StringComparison.OrdinalIgnoreCase) == true ? "en" : "bg";
+            QueueEmail(email => email.SendPasswordResetAsync(user.Email, user.DisplayName, resetUrl, language));
         }
 
         return Ok(new { message = "password_reset_sent" });
@@ -233,9 +305,24 @@ public class AuthController : ControllerBase
         if (user == null)
             return NotFound();
 
-        var recipes = await _context.Recipes.Where(r => r.AuthorId == userId).ToListAsync();
+        if (user.Role == "Admin")
+        {
+            var adminCount = await _context.Users.CountAsync(u => u.Role == "Admin");
+            if (adminCount <= 1)
+                return BadRequest(new { error = "Трябва да остане поне един администратор." });
+        }
+
+        var recipes = await _context.Recipes
+            .Include(r => r.Media)
+            .Where(r => r.AuthorId == userId)
+            .ToListAsync();
         foreach (var recipe in recipes)
         {
+            foreach (var media in recipe.Media)
+            {
+                _fileStorage.DeleteFile(media.Url);
+                _fileStorage.DeleteFile(media.ThumbnailUrl);
+            }
             if (!string.IsNullOrEmpty(recipe.ImageUrl))
                 _fileStorage.DeleteFile(recipe.ImageUrl);
             if (!string.IsNullOrEmpty(recipe.ThumbnailUrl))

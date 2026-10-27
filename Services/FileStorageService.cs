@@ -152,6 +152,44 @@ public class FileStorageService : IFileStorageService
         return false;
     }
 
+    public async Task<string> SavePrivateFileAsync(IFormFile file, CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length == 0)
+            throw new ArgumentException("Файлът е празен.", nameof(file));
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension is not ".pdf" and not ".epub" and not ".zip")
+            throw new BadHttpRequestException("Файлът трябва да е PDF, EPUB или ZIP.");
+        if (file.Length > 30 * 1024 * 1024)
+            throw new BadHttpRequestException("Файлът трябва да е до 30 MB.");
+
+        var folder = Path.Combine(_env.ContentRootPath, "private-shop");
+        Directory.CreateDirectory(folder);
+        var storedName = Guid.NewGuid().ToString("N") + extension;
+        var fullPath = Path.Combine(folder, storedName);
+        await using var target = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+        await file.CopyToAsync(target, cancellationToken);
+        return storedName;
+    }
+
+    public string? PrivateFilePath(string? storedName)
+    {
+        if (string.IsNullOrWhiteSpace(storedName)) return null;
+        var folder = Path.GetFullPath(Path.Combine(_env.ContentRootPath, "private-shop"));
+        var path = Path.GetFullPath(Path.Combine(folder, Path.GetFileName(storedName)));
+        if (!path.StartsWith(folder, StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
+            return null;
+        return path;
+    }
+
+    public void DeletePrivateFile(string? storedName)
+    {
+        var path = PrivateFilePath(storedName);
+        if (path == null) return;
+        try { File.Delete(path); }
+        catch (Exception ex) { _logger.LogError(ex, "Грешка при изтриване на частен файл {Path}", path); }
+    }
+
     public void DeleteFile(string? relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath))

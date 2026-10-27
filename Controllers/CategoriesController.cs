@@ -113,7 +113,7 @@ public class CategoriesController : ControllerBase
 
         await _context.SaveChangesAsync();
         return Ok(category);
-    }
+    } 
 
     // DELETE: api/v1/categories/{id}
     [HttpDelete("{id}")]

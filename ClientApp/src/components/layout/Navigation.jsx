@@ -1,10 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from "../../context/AuthContext";
 import { getCategories } from '../../api/recipeService';
 
 const CLOSE_DELAY = 150; // ms — small buffer so moving the mouse between items doesn't flicker
+
+function AdminMenu({ id, label, items, open, onToggle }) {
+    const location = useLocation();
+    const active = items.some((item) => location.pathname.startsWith(item.to));
+
+    return (
+        <div className={`admin-menu${open ? ' open' : ''}`}>
+            <button
+                type="button"
+                className={active ? 'active' : undefined}
+                aria-expanded={open}
+                onClick={() => onToggle(open ? null : id)}
+            >
+                {label} <span className="nav-caret">▾</span>
+            </button>
+            {open && (
+                <div className="admin-submenu">
+                    {items.map((item) => (
+                        <NavLink key={item.to} to={item.to}>{item.label}</NavLink>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function Navigation() {
     const { t, i18n } = useTranslation();
@@ -14,8 +39,10 @@ export default function Navigation() {
 
     const [categories, setCategories] = useState([]);
     const [openId, setOpenId] = useState(null);
+    const [adminMenu, setAdminMenu] = useState(null);
     const [mobileOpen, setMobileOpen] = useState(false);
     const closeTimerRef = useRef(null);
+    const adminNavRef = useRef(null);
 
     useEffect(() => {
         getCategories()
@@ -26,8 +53,18 @@ export default function Navigation() {
     // Close any open dropdown (and the mobile panel) whenever the route changes
     useEffect(() => {
         setOpenId(null);
+        setAdminMenu(null);
         setMobileOpen(false);
     }, [location.pathname, location.search]);
+
+    useEffect(() => {
+        if (!adminMenu) return undefined;
+        const onPointerDown = (event) => {
+            if (!adminNavRef.current?.contains(event.target)) setAdminMenu(null);
+        };
+        document.addEventListener('pointerdown', onPointerDown);
+        return () => document.removeEventListener('pointerdown', onPointerDown);
+    }, [adminMenu]);
 
     const scheduleClose = () => {
         clearTimeout(closeTimerRef.current);
@@ -43,6 +80,36 @@ export default function Navigation() {
 
     return (
         <div className="nav-container">
+            {isAdmin && (
+                <nav className="admin-nav" aria-label={t('nav.admin')} ref={adminNavRef}>
+                    <span className="admin-nav-label">{t('nav.admin')}</span>
+                    <AdminMenu
+                        id="recipes"
+                        label={t('admin_recipes_nav')}
+                        open={adminMenu === 'recipes'}
+                        onToggle={setAdminMenu}
+                        items={[
+                            { to: '/admin/moderation', label: t('admin_moderation_nav', 'Съдържание') },
+                            { to: '/admin/categories', label: t('admin_categories_nav') },
+                        ]}
+                    />
+                    <NavLink to="/admin/articles">{t('admin_articles_nav', 'Енциклопедия')}</NavLink>
+                    <NavLink to="/admin/newsletter">{t('admin_newsletter_nav')}</NavLink>
+                    <AdminMenu
+                        id="shop"
+                        label={t('shop')}
+                        open={adminMenu === 'shop'}
+                        onToggle={setAdminMenu}
+                        items={[
+                            { to: '/admin/products', label: t('shop_admin_products') },
+                            { to: '/admin/orders', label: t('shop_admin_orders') },
+                        ]}
+                    />
+                    <NavLink to="/admin/users">{t('admin_users_nav', 'Потребители')}</NavLink>
+                    <NavLink to="/admin/audit">{t('admin_audit_nav', 'История')}</NavLink>
+                </nav>
+            )}
+
             <button
                 type="button"
                 className="nav-hamburger"
@@ -106,13 +173,6 @@ export default function Navigation() {
                         </div>
                     );
                 })}
-
-                {isAdmin && (
-                    <>
-                        <Link to="/admin/categories" className="admin-link">{t('admin_categories_nav', 'Категории')}</Link>
-                        <Link to="/admin/newsletter" className="admin-link">{t('admin_newsletter_nav', 'Бюлетин')}</Link>
-                    </>
-                )}
             </nav>
         </div>
     );

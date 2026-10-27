@@ -21,6 +21,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<RecipeMedia> RecipeMedia => Set<RecipeMedia>();
     public DbSet<NewsletterSubscriber> NewsletterSubscribers { get; set; }
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<ShopSetting> ShopSettings => Set<ShopSetting>();
+    public DbSet<ShopOrder> ShopOrders => Set<ShopOrder>();
+    public DbSet<ShopOrderItem> ShopOrderItems => Set<ShopOrderItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +46,35 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Article>()
             .HasIndex(a => a.Slug)
             .IsUnique();
+
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.GoogleSubject)
+            .IsUnique()
+            .HasFilter("\"GoogleSubject\" IS NOT NULL");
+
+        modelBuilder.Entity<Product>()
+            .Property(p => p.Price)
+            .HasPrecision(10, 2);
+
+        modelBuilder.Entity<ShopOrder>()
+            .Property(o => o.Total)
+            .HasPrecision(10, 2);
+
+        modelBuilder.Entity<ShopOrderItem>()
+            .Property(i => i.UnitPrice)
+            .HasPrecision(10, 2);
+
+        modelBuilder.Entity<ShopOrderItem>()
+            .HasOne(i => i.ShopOrder)
+            .WithMany(o => o.Items)
+            .HasForeignKey(i => i.ShopOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ShopOrderItem>()
+            .HasOne(i => i.Product)
+            .WithMany(p => p.OrderItems)
+            .HasForeignKey(i => i.ProductId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<Recipe>()
             .HasOne(r => r.CategoryEntity)
@@ -119,6 +153,9 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<RecipeMedia>()
             .HasIndex(m => new { m.RecipeId, m.SortOrder });
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(a => a.CreatedAt);
     }
     
 }

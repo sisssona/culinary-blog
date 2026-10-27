@@ -52,6 +52,18 @@ export const AuthProvider = ({ children }) => {
         return { success: true };
     };
 
+    const loginWithGoogle = async (idToken) => {
+        try {
+            const preferredLanguage = i18n.language?.startsWith('en') ? 'en' : 'bg';
+            const response = await api.post('/auth/google', { idToken, preferredLanguage });
+            return applyAuth(response.data, response.data?.email || response.data?.Email);
+        } catch (error) {
+            const errData = error.response?.data;
+            const msg = errData?.error || errData?.message || 'google_error';
+            return { success: false, message: typeof msg === 'string' ? msg : 'google_error' };
+        }
+    };
+
     const login = async (email, password) => {
         try {
             const response = await api.post('/auth/login', { email, password });
@@ -115,6 +127,7 @@ export const AuthProvider = ({ children }) => {
         isAdmin: user?.role === 'Admin',
         loading,
         login,
+        loginWithGoogle,
         register,
         logout,
         markEmailConfirmed

@@ -9,7 +9,7 @@ export default function ImageDropzone({ onFileSelect }) {
     const handleFiles = (file) => {
         if (!file) return;
 
-        const allowed = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'];
+        const allowed = ['jpg', 'jpeg', 'jfif', 'png', 'webp', 'heic', 'heif', 'avif', 'gif'];
         const ext = file.name.split('.').pop().toLowerCase();
 
         if (!allowed.includes(ext)) {

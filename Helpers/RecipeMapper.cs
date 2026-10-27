@@ -88,7 +88,17 @@ public static class RecipeMapper
             card.AuthorId, card.AuthorName, card.PrepTimeMinutes, card.CookTimeMinutes,
             card.Servings, card.Difficulty, card.LikeCount, card.CommentCount, card.FavoriteCount,
             card.RatingAverage, card.RatingCount, card.ViewCount, card.IsFeatured,
-            liked, favorited, myRating, card.Tags
+            liked, favorited, myRating, card.Tags,
+            (r.Media ?? [])
+                .OrderBy(m => m.SortOrder)
+                .Select(m => new RecipeMediaDto(
+                    m.Id,
+                    m.State == "ready" ? m.Url : "",
+                    m.State == "ready" ? m.ThumbnailUrl : null,
+                    m.MediaType,
+                    m.State,
+                    m.IsPrimary))
+                .ToList()
         );
     }
 
